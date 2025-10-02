@@ -37,7 +37,7 @@ func TestPostgresExtraction(t *testing.T) {
 	}
 
 	// Verify tables exist
-	expectedTables := []string{"users", "profiles", "posts", "comments"}
+	expectedTables := []string{"users", "products", "orders", "order_items"}
 	if len(schema.Tables) != len(expectedTables) {
 		t.Errorf("Expected %d tables, got %d", len(expectedTables), len(schema.Tables))
 	}
@@ -88,7 +88,7 @@ func TestPostgresExtraction(t *testing.T) {
 	}
 
 	// Check columns
-	expectedColumns := []string{"id", "email", "username", "created_at"}
+	expectedColumns := []string{"id", "username", "email", "status", "created_at"}
 	columnMap := make(map[string]bool)
 	for _, col := range usersTable.Columns {
 		columnMap[col.Name] = true
@@ -101,7 +101,7 @@ func TestPostgresExtraction(t *testing.T) {
 	}
 
 	// Verify foreign key relationships
-	var postsTable *struct {
+	var ordersTable *struct {
 		Relations []struct {
 			TargetTable  string
 			SourceColumn string
@@ -109,15 +109,15 @@ func TestPostgresExtraction(t *testing.T) {
 	}
 
 	for _, table := range schema.Tables {
-		if table.Name == "posts" {
-			postsTable = &struct {
+		if table.Name == "orders" {
+			ordersTable = &struct {
 				Relations []struct {
 					TargetTable  string
 					SourceColumn string
 				}
 			}{}
 			for _, rel := range table.Relations {
-				postsTable.Relations = append(postsTable.Relations, struct {
+				ordersTable.Relations = append(ordersTable.Relations, struct {
 					TargetTable  string
 					SourceColumn string
 				}{
@@ -129,13 +129,13 @@ func TestPostgresExtraction(t *testing.T) {
 		}
 	}
 
-	if postsTable == nil {
-		t.Fatal("Posts table not found")
+	if ordersTable == nil {
+		t.Fatal("Orders table not found")
 	}
 
-	// Check that posts has a relation to users
+	// Check that orders has a relation to users
 	foundUserRelation := false
-	for _, rel := range postsTable.Relations {
+	for _, rel := range ordersTable.Relations {
 		if rel.TargetTable == "users" && rel.SourceColumn == "user_id" {
 			foundUserRelation = true
 			break
@@ -143,7 +143,7 @@ func TestPostgresExtraction(t *testing.T) {
 	}
 
 	if !foundUserRelation {
-		t.Error("Expected foreign key relationship from posts.user_id to users not found")
+		t.Error("Expected foreign key relationship from orders.user_id to users not found")
 	}
 }
 
@@ -163,8 +163,8 @@ func TestPostgresSpecificTables(t *testing.T) {
 
 	extractor := db.NewExtractor(client, "public")
 
-	// Extract only users and posts tables
-	schema, err := extractor.ExtractSchema(ctx, []string{"users", "posts"})
+	// Extract only users and orders tables
+	schema, err := extractor.ExtractSchema(ctx, []string{"users", "orders"})
 	if err != nil {
 		t.Fatalf("Failed to extract schema: %v", err)
 	}
@@ -178,11 +178,11 @@ func TestPostgresSpecificTables(t *testing.T) {
 		tableMap[table.Name] = true
 	}
 
-	if !tableMap["users"] || !tableMap["posts"] {
-		t.Error("Expected users and posts tables")
+	if !tableMap["users"] || !tableMap["orders"] {
+		t.Error("Expected users and orders tables")
 	}
 
-	if tableMap["comments"] || tableMap["profiles"] {
-		t.Error("Should not include comments or profiles tables")
+	if tableMap["products"] || tableMap["order_items"] {
+		t.Error("Should not include products or order_items tables")
 	}
 }

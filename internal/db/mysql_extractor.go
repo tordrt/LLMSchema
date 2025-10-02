@@ -61,7 +61,7 @@ func (e *MySQLExtractor) getTableNames(ctx context.Context, requestedTables []st
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tables []string
 	for rows.Next() {
@@ -139,7 +139,7 @@ func (e *MySQLExtractor) extractColumns(ctx context.Context, tableName string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var columns []schema.Column
 	var enumColumns []int
@@ -233,7 +233,7 @@ func (e *MySQLExtractor) extractPrimaryKey(ctx context.Context, tableName string
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var pk []string
 	for rows.Next() {
@@ -265,7 +265,7 @@ func (e *MySQLExtractor) extractRelations(ctx context.Context, tableName string)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var relations []schema.Relation
 	for rows.Next() {
@@ -302,7 +302,7 @@ func (e *MySQLExtractor) extractIndexes(ctx context.Context, tableName string) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var indexes []schema.Index
 	for rows.Next() {

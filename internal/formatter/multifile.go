@@ -10,6 +10,11 @@ import (
 	"github.com/tordrt/llmschema/internal/schema"
 )
 
+const (
+	formatMarkdown = "markdown"
+	formatText     = "text"
+)
+
 // MultiFileFormatter writes schema to multiple files in a directory
 type MultiFileFormatter struct {
 	OutputDir    string
@@ -57,7 +62,7 @@ func (f *MultiFileFormatter) writeOverview(s *schema.Schema) error {
 	}
 	defer func() { _ = file.Close() }()
 
-	if f.OutputFormat == "markdown" {
+	if f.OutputFormat == formatMarkdown {
 		return f.writeMarkdownOverview(file, s)
 	}
 	return f.writeTextOverview(file, s)
@@ -167,7 +172,7 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 	}
 
 	// Use existing formatters
-	if f.OutputFormat == "markdown" {
+	if f.OutputFormat == formatMarkdown {
 		formatter := NewMarkdownFormatter(file)
 
 		// Add related tables section
@@ -240,7 +245,7 @@ func (f *MultiFileFormatter) findIncomingRelations(tableName string, s *schema.S
 }
 
 func (f *MultiFileFormatter) getFileExtension() string {
-	if f.OutputFormat == "markdown" {
+	if f.OutputFormat == formatMarkdown {
 		return ".md"
 	}
 	return ".txt"

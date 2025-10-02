@@ -388,8 +388,8 @@ func (e *SQLiteExtractor) extractCheckConstraints(ctx context.Context, tableName
 
 		// Skip empty lines and lines that don't contain columns
 		if line == "" || strings.HasPrefix(line, "CREATE TABLE") ||
-		   strings.HasPrefix(line, "FOREIGN KEY") || strings.HasPrefix(line, "PRIMARY KEY") ||
-		   strings.HasPrefix(line, "UNIQUE") {
+			strings.HasPrefix(line, "FOREIGN KEY") || strings.HasPrefix(line, "PRIMARY KEY") ||
+			strings.HasPrefix(line, "UNIQUE") {
 			continue
 		}
 

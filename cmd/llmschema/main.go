@@ -43,10 +43,7 @@ func init() {
 	rootCmd.Flags().IntVar(&splitThreshold, "split-threshold", 0, "Split into multiple files when table count exceeds this (requires --output-dir)")
 }
 
-func run(cmd *cobra.Command, args []string) error {
-	ctx := context.Background()
-
-	// Validate database flags
+func validateDatabaseFlags() error {
 	dbCount := 0
 	if pgURL != "" {
 		dbCount++
@@ -63,87 +60,102 @@ func run(cmd *cobra.Command, args []string) error {
 	if dbCount > 1 {
 		return fmt.Errorf("only one of --pg-url, --mysql-url, or --sqlite can be specified")
 	}
+	return nil
+}
 
-	// Parse table list
-	var tableList []string
-	if tables != "" {
-		tableList = strings.Split(tables, ",")
-		for i, t := range tableList {
-			tableList[i] = strings.TrimSpace(t)
-		}
+func parseTableList(tablesStr string) []string {
+	if tablesStr == "" {
+		return nil
 	}
+	tableList := strings.Split(tablesStr, ",")
+	for i, t := range tableList {
+		tableList[i] = strings.TrimSpace(t)
+	}
+	return tableList
+}
 
-	// Extract schema based on database type
-	var extractedSchema *schema.Schema
-
+func extractSchema(ctx context.Context, tableList []string) (*schema.Schema, error) {
 	if sqlitePath != "" {
-		// SQLite mode
-		client, err := db.NewSQLiteClient(ctx, sqlitePath)
-		if err != nil {
-			return fmt.Errorf("failed to connect to SQLite: %w", err)
-		}
-		defer func() {
-			if err := client.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to close SQLite connection: %v\n", err)
-			}
-		}()
-
-		extractor := db.NewSQLiteExtractor(client)
-		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
-		if err != nil {
-			return fmt.Errorf("failed to extract schema: %w", err)
-		}
+		return extractSQLiteSchema(ctx, tableList)
 	} else if mysqlURL != "" {
-		// MySQL mode
-		client, err := db.NewMySQLClient(ctx, mysqlURL)
-		if err != nil {
-			return fmt.Errorf("failed to connect to MySQL: %w", err)
-		}
-		defer func() {
-			if err := client.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to close MySQL connection: %v\n", err)
-			}
-		}()
+		return extractMySQLSchema(ctx, tableList)
+	}
+	return extractPostgresSchema(ctx, tableList)
+}
 
-		// Auto-detect database name from connection string if schema not specified
-		mysqlSchema := schemaName
-		if mysqlSchema == "" {
-			mysqlSchema, err = db.ParseDatabaseName(mysqlURL)
-			if err != nil {
-				return fmt.Errorf("failed to determine database name: %w (please specify --schema)", err)
-			}
+func extractSQLiteSchema(ctx context.Context, tableList []string) (*schema.Schema, error) {
+	client, err := db.NewSQLiteClient(ctx, sqlitePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
+	}
+	defer func() {
+		if err := client.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to close SQLite connection: %v\n", err)
 		}
+	}()
 
-		extractor := db.NewMySQLExtractor(client, mysqlSchema)
-		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
-		if err != nil {
-			return fmt.Errorf("failed to extract schema: %w", err)
-		}
-	} else {
-		// PostgreSQL mode
-		client, err := db.NewPostgresClient(ctx, pgURL)
-		if err != nil {
-			return fmt.Errorf("failed to connect to PostgreSQL: %w", err)
-		}
-		defer func() {
-			if err := client.Close(ctx); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to close PostgreSQL connection: %v\n", err)
-			}
-		}()
+	extractor := db.NewSQLiteExtractor(client)
+	extractedSchema, err := extractor.ExtractSchema(ctx, tableList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract schema: %w", err)
+	}
+	return extractedSchema, nil
+}
 
-		// Default to "public" schema if not specified
-		pgSchema := schemaName
-		if pgSchema == "" {
-			pgSchema = "public"
+func extractMySQLSchema(ctx context.Context, tableList []string) (*schema.Schema, error) {
+	client, err := db.NewMySQLClient(ctx, mysqlURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MySQL: %w", err)
+	}
+	defer func() {
+		if err := client.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to close MySQL connection: %v\n", err)
 		}
+	}()
 
-		extractor := db.NewExtractor(client, pgSchema)
-		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
+	// Auto-detect database name from connection string if schema not specified
+	mysqlSchema := schemaName
+	if mysqlSchema == "" {
+		mysqlSchema, err = db.ParseDatabaseName(mysqlURL)
 		if err != nil {
-			return fmt.Errorf("failed to extract schema: %w", err)
+			return nil, fmt.Errorf("failed to determine database name: %w (please specify --schema)", err)
 		}
 	}
 
+	extractor := db.NewMySQLExtractor(client, mysqlSchema)
+	extractedSchema, err := extractor.ExtractSchema(ctx, tableList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract schema: %w", err)
+	}
+	return extractedSchema, nil
+}
+
+func extractPostgresSchema(ctx context.Context, tableList []string) (*schema.Schema, error) {
+	client, err := db.NewPostgresClient(ctx, pgURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
+	}
+	defer func() {
+		if err := client.Close(ctx); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to close PostgreSQL connection: %v\n", err)
+		}
+	}()
+
+	// Default to "public" schema if not specified
+	pgSchema := schemaName
+	if pgSchema == "" {
+		pgSchema = "public"
+	}
+
+	extractor := db.NewExtractor(client, pgSchema)
+	extractedSchema, err := extractor.ExtractSchema(ctx, tableList)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract schema: %w", err)
+	}
+	return extractedSchema, nil
+}
+
+func formatOutput(extractedSchema *schema.Schema) error {
 	// Check if we should use multi-file output
 	shouldSplit := outputDir != "" && (splitThreshold == 0 || len(extractedSchema.Tables) > splitThreshold)
 
@@ -177,23 +189,37 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Format and write output
-	var err2 error
 	switch format {
 	case "text":
 		textFormatter := formatter.NewTextFormatter(writer)
-		err2 = textFormatter.Format(extractedSchema)
+		return textFormatter.Format(extractedSchema)
 	case "markdown":
 		markdownFormatter := formatter.NewMarkdownFormatter(writer)
-		err2 = markdownFormatter.Format(extractedSchema)
+		return markdownFormatter.Format(extractedSchema)
 	default:
 		return fmt.Errorf("invalid format: %s (must be 'text' or 'markdown')", format)
 	}
+}
 
-	if err2 != nil {
-		return fmt.Errorf("failed to format output: %w", err2)
+func run(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
+	// Validate database flags
+	if err := validateDatabaseFlags(); err != nil {
+		return err
 	}
 
-	return nil
+	// Parse table list
+	tableList := parseTableList(tables)
+
+	// Extract schema based on database type
+	extractedSchema, err := extractSchema(ctx, tableList)
+	if err != nil {
+		return err
+	}
+
+	// Format and output the schema
+	return formatOutput(extractedSchema)
 }
 
 func main() {
