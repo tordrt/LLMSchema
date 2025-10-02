@@ -4,6 +4,7 @@ go 1.24.4
 
 require (
 	github.com/jackc/pgx/v5 v5.7.6
+	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/spf13/cobra v1.10.1
 )
 
