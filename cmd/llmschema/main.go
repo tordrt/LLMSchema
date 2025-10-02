@@ -16,6 +16,7 @@ var (
 	outputFile string
 	tables     string
 	schemaName string
+	format     string
 )
 
 var rootCmd = &cobra.Command{
@@ -30,6 +31,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "public", "Schema name (default: public)")
+	rootCmd.Flags().StringVarP(&format, "format", "f", "markdown", "Output format: text or markdown (default: markdown)")
 
 	rootCmd.MarkFlagRequired("db-url")
 }
@@ -74,9 +76,20 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Format and write output
-	textFormatter := formatter.NewTextFormatter(writer)
-	if err := textFormatter.Format(schema); err != nil {
-		return fmt.Errorf("failed to format output: %w", err)
+	var err2 error
+	switch format {
+	case "text":
+		textFormatter := formatter.NewTextFormatter(writer)
+		err2 = textFormatter.Format(schema)
+	case "markdown":
+		markdownFormatter := formatter.NewMarkdownFormatter(writer)
+		err2 = markdownFormatter.Format(schema)
+	default:
+		return fmt.Errorf("invalid format: %s (must be 'text' or 'markdown')", format)
+	}
+
+	if err2 != nil {
+		return fmt.Errorf("failed to format output: %w", err2)
 	}
 
 	return nil
