@@ -13,29 +13,6 @@ Build the binary:
 go build -o llmschema ./cmd/llmschema
 ```
 
-Run the tool:
-```bash
-# Extract entire schema
-./llmschema --db-url "postgres://user:password@localhost:5432/mydb"
-
-# Extract specific tables
-./llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts"
-
-# Output to file
-./llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o schema.txt
-
-# Use markdown format (default)
-./llmschema --db-url "postgres://user:password@localhost:5432/mydb" -f markdown
-
-# Use text format
-./llmschema --db-url "postgres://user:password@localhost:5432/mydb" -f text
-```
-
-Install globally:
-```bash
-go install github.com/tordrt/llmschema/cmd/llmschema@latest
-```
-
 ## Architecture
 
 The codebase follows a clean layered architecture:
@@ -69,15 +46,6 @@ The extractor queries are optimized for a single schema at a time (default: "pub
 ## Testing
 
 No automated tests exist yet. Manual testing uses `test_schema.sql` for setting up a test database.
-
-To test manually:
-```bash
-# Set up test database
-psql -d testdb -f test_schema.sql
-
-# Run tool against test database
-./llmschema --db-url "postgres://user:password@localhost:5432/testdb"
-```
 
 ## Dependencies
 
