@@ -162,6 +162,19 @@ func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) 
 		columns[i].IsUnique = isUnique
 	}
 
+	// Extract CHECK constraints
+	checkConstraints, err := e.extractCheckConstraints(ctx, tableName)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply CHECK constraints to columns
+	for i := range columns {
+		if check, ok := checkConstraints[columns[i].Name]; ok {
+			columns[i].CheckConstraint = &check
+		}
+	}
+
 	return columns, nil
 }
 
@@ -348,4 +361,73 @@ func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) 
 	}
 
 	return indexes, rows.Err()
+}
+
+// extractCheckConstraints extracts CHECK constraints from the table definition
+func (e *SQLiteExtractor) extractCheckConstraints(ctx context.Context, tableName string) (map[string]string, error) {
+	query := `
+		SELECT sql
+		FROM sqlite_master
+		WHERE type = 'table' AND name = ?
+	`
+
+	var sqlText string
+	err := e.client.GetDB().QueryRowContext(ctx, query, tableName).Scan(&sqlText)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse CHECK constraints from the CREATE TABLE statement
+	checkConstraints := make(map[string]string)
+
+	// Simple parsing: find CHECK(...) patterns after column definitions
+	// This handles inline column CHECK constraints like: column_name TYPE CHECK(expression)
+	lines := strings.Split(sqlText, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		// Skip empty lines and lines that don't contain columns
+		if line == "" || strings.HasPrefix(line, "CREATE TABLE") ||
+		   strings.HasPrefix(line, "FOREIGN KEY") || strings.HasPrefix(line, "PRIMARY KEY") ||
+		   strings.HasPrefix(line, "UNIQUE") {
+			continue
+		}
+
+		// Look for CHECK constraint in the line
+		checkIdx := strings.Index(line, "CHECK(")
+		if checkIdx == -1 {
+			continue
+		}
+
+		// Extract column name (first word before any spaces/types)
+		parts := strings.Fields(line)
+		if len(parts) == 0 {
+			continue
+		}
+		columnName := parts[0]
+
+		// Extract the CHECK expression
+		checkStart := checkIdx + 6 // Length of "CHECK("
+		depth := 1
+		checkEnd := checkStart
+
+		for i := checkStart; i < len(line) && depth > 0; i++ {
+			if line[i] == '(' {
+				depth++
+			} else if line[i] == ')' {
+				depth--
+				if depth == 0 {
+					checkEnd = i
+					break
+				}
+			}
+		}
+
+		if depth == 0 {
+			checkExpr := line[checkStart:checkEnd]
+			checkConstraints[columnName] = checkExpr
+		}
+	}
+
+	return checkConstraints, nil
 }

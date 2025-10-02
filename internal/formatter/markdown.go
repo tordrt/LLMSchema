@@ -110,6 +110,10 @@ func (f *MarkdownFormatter) formatConstraints(col schema.Column) string {
 		constraints = append(constraints, fmt.Sprintf("DEFAULT `%s`", *col.DefaultValue))
 	}
 
+	if col.CheckConstraint != nil {
+		constraints = append(constraints, fmt.Sprintf("CHECK(`%s`)", *col.CheckConstraint))
+	}
+
 	if len(constraints) == 0 {
 		return "-"
 	}

@@ -16,12 +16,13 @@ type Table struct {
 
 // Column represents a table column
 type Column struct {
-	Name         string
-	Type         string
-	Nullable     bool
-	DefaultValue *string
-	IsUnique     bool
-	EnumValues   []string // For USER-DEFINED enum types
+	Name            string
+	Type            string
+	Nullable        bool
+	DefaultValue    *string
+	IsUnique        bool
+	EnumValues      []string // For USER-DEFINED enum types
+	CheckConstraint *string  // For CHECK constraints
 }
 
 // Relation represents a foreign key relationship

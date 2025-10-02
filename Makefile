@@ -41,12 +41,12 @@ docker-clean:
 # Test PostgreSQL output (text format)
 test-postgres: build docker-up-postgres
 	@echo "\n=== Testing PostgreSQL (text format) ==="
-	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
+	./llmschema --pg-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
 
 # Test PostgreSQL output (markdown format)
 test-postgres-md: build docker-up-postgres
 	@echo "\n=== Testing PostgreSQL (markdown format) ==="
-	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" --format markdown
+	./llmschema --pg-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" --format markdown
 
 # Test MySQL output (text format)
 test-mysql: build docker-up-mysql

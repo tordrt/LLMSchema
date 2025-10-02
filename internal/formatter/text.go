@@ -95,5 +95,10 @@ func (f *TextFormatter) formatColumn(col schema.Column) string {
 		parts = append(parts, fmt.Sprintf("DEFAULT %s", *col.DefaultValue))
 	}
 
+	// CHECK constraint
+	if col.CheckConstraint != nil {
+		parts = append(parts, fmt.Sprintf("CHECK(%s)", *col.CheckConstraint))
+	}
+
 	return strings.Join(parts, " ")
 }

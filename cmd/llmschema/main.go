@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	dbURL          string
+	pgURL          string
 	mysqlURL       string
 	sqlitePath     string
 	outputFile     string
@@ -32,7 +32,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVar(&dbURL, "db-url", "", "PostgreSQL connection string")
+	rootCmd.Flags().StringVar(&pgURL, "pg-url", "", "PostgreSQL connection string")
 	rootCmd.Flags().StringVar(&mysqlURL, "mysql-url", "", "MySQL connection string")
 	rootCmd.Flags().StringVar(&sqlitePath, "sqlite", "", "SQLite database file path")
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
@@ -48,7 +48,7 @@ func run(cmd *cobra.Command, args []string) error {
 
 	// Validate database flags
 	dbCount := 0
-	if dbURL != "" {
+	if pgURL != "" {
 		dbCount++
 	}
 	if mysqlURL != "" {
@@ -58,10 +58,10 @@ func run(cmd *cobra.Command, args []string) error {
 		dbCount++
 	}
 	if dbCount == 0 {
-		return fmt.Errorf("one of --db-url, --mysql-url, or --sqlite must be specified")
+		return fmt.Errorf("one of --pg-url, --mysql-url, or --sqlite must be specified")
 	}
 	if dbCount > 1 {
-		return fmt.Errorf("only one of --db-url, --mysql-url, or --sqlite can be specified")
+		return fmt.Errorf("only one of --pg-url, --mysql-url, or --sqlite can be specified")
 	}
 
 	// Parse table list
@@ -121,7 +121,7 @@ func run(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// PostgreSQL mode
-		client, err := db.NewPostgresClient(ctx, dbURL)
+		client, err := db.NewPostgresClient(ctx, pgURL)
 		if err != nil {
 			return fmt.Errorf("failed to connect to PostgreSQL: %w", err)
 		}
