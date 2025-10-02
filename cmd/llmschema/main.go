@@ -34,7 +34,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputDir, "output-dir", "d", "", "Output directory for multi-file output")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "", "Database schema name (optional: defaults to 'public' for PostgreSQL, auto-detected from connection string for MySQL)")
-	rootCmd.Flags().StringVarP(&format, "format", "f", "text", "Output format: text or markdown (default: text)")
+	rootCmd.Flags().StringVarP(&format, "format", "f", "markdown", "Output format: text or markdown (default: markdown)")
 }
 
 type dbConfig struct {

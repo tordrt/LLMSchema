@@ -36,8 +36,8 @@ llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o schema.txt
 # Specific tables only
 llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts" -o schema.txt
 
-# Markdown format (More readable for humans but more verbose)
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -f markdown -d llm-docs/db-schema
+# Text format (More compact but less readable and also less structured for llms)
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -f text -o schema.txt
 ```
 
 ## Output Format
@@ -102,7 +102,7 @@ When working with database-related code:
 | `--output-dir` | `-d` | Output directory for multi-file output | - |
 | `--tables` | `-t` | Comma-separated list of tables to extract | All tables |
 | `--schema` | `-s` | Database schema name (PostgreSQL/MySQL) | `public` for PostgreSQL, auto-detected for MySQL |
-| `--format` | `-f` | Output format: `text` or `markdown` | `text` |
+| `--format` | `-f` | Output format: `text` or `markdown` | `markdown` |
 
 ## Connection String Formats
 
