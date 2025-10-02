@@ -34,3 +34,4 @@ go.work.sum
 /.idea/LLMSchema.iml
 /.idea/modules.xml
 /.idea/vcs.xml
+/test.db

@@ -1,4 +1,4 @@
-.PHONY: build test test-postgres test-mysql test-integration docker-up docker-down docker-clean help
+.PHONY: build test test-postgres test-mysql test-sqlite test-integration docker-up docker-down docker-clean help
 
 # Build the binary
 build:
@@ -58,17 +58,35 @@ test-mysql-md: build docker-up-mysql
 	@echo "\n=== Testing MySQL (markdown format) ==="
 	./llmschema --mysql-url "root:testpassword@tcp(localhost:3306)/testdb" --format markdown
 
+# Setup SQLite test database
+setup-sqlite:
+	@echo "Creating SQLite test database..."
+	@sqlite3 test.db < test_sqlite_schema.sql
+	@echo "SQLite test database created at test.db"
+
+# Test SQLite output (text format)
+test-sqlite: build setup-sqlite
+	@echo "\n=== Testing SQLite (text format) ==="
+	./llmschema --sqlite test.db
+
+# Test SQLite output (markdown format)
+test-sqlite-md: build setup-sqlite
+	@echo "\n=== Testing SQLite (markdown format) ==="
+	./llmschema --sqlite test.db --format markdown
+
 # Run integration tests against all databases
-test-integration: build docker-up
+test-integration: build docker-up setup-sqlite
 	@echo "\n=== Running integration tests ==="
 	go test -v -tags=integration ./tests/integration/...
 
-# Quick test - build and test both databases
-test-all: build docker-up
+# Quick test - build and test all databases
+test-all: build docker-up setup-sqlite
 	@echo "\n=== Testing PostgreSQL ==="
 	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
 	@echo "\n=== Testing MySQL ==="
 	./llmschema --mysql-url "root:testpassword@tcp(localhost:3306)/testdb"
+	@echo "\n=== Testing SQLite ==="
+	./llmschema --sqlite test.db
 
 # Show database logs
 logs:
@@ -101,6 +119,8 @@ help:
 	@echo "  make test-postgres-md   - Build and test PostgreSQL (markdown)"
 	@echo "  make test-mysql         - Build and test MySQL (text format)"
 	@echo "  make test-mysql-md      - Build and test MySQL (markdown)"
+	@echo "  make test-sqlite        - Build and test SQLite (text format)"
+	@echo "  make test-sqlite-md     - Build and test SQLite (markdown)"
 	@echo "  make test-all           - Build and test all databases"
 	@echo ""
 	@echo "  make logs               - Show logs from all databases"
