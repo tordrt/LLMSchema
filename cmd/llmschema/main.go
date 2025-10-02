@@ -13,12 +13,13 @@ import (
 )
 
 var (
-	dbURL      string
-	outputFile string
-	outputDir  string
-	tables     string
-	schemaName string
-	format     string
+	dbURL         string
+	outputFile    string
+	outputDir     string
+	tables        string
+	excludeTables string
+	schemaName    string
+	format        string
 )
 
 var rootCmd = &cobra.Command{
@@ -33,12 +34,13 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&outputDir, "output-dir", "d", "", "Output directory for multi-file output")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
+	rootCmd.Flags().StringVarP(&excludeTables, "exclude-tables", "e", "", "Tables to exclude (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "", "Database schema name (optional: defaults to 'public' for PostgreSQL, auto-detected from connection string for MySQL)")
 	rootCmd.Flags().StringVarP(&format, "format", "f", "markdown", "Output format: text or markdown (default: markdown)")
 }
 
 type dbConfig struct {
-	dbType       string // "postgres", "mysql", or "sqlite"
+	dbType        string // "postgres", "mysql", or "sqlite"
 	connectionStr string // processed connection string for the specific driver
 }
 
@@ -50,7 +52,7 @@ func parseDatabaseURL(url string) (*dbConfig, error) {
 	// Detect database type from scheme
 	if strings.HasPrefix(url, "postgres://") || strings.HasPrefix(url, "postgresql://") {
 		return &dbConfig{
-			dbType:       "postgres",
+			dbType:        "postgres",
 			connectionStr: url,
 		}, nil
 	}
@@ -59,7 +61,7 @@ func parseDatabaseURL(url string) (*dbConfig, error) {
 		// Strip mysql:// prefix for the Go MySQL driver
 		connectionStr := strings.TrimPrefix(url, "mysql://")
 		return &dbConfig{
-			dbType:       "mysql",
+			dbType:        "mysql",
 			connectionStr: connectionStr,
 		}, nil
 	}
@@ -68,7 +70,7 @@ func parseDatabaseURL(url string) (*dbConfig, error) {
 		// Strip sqlite:// prefix to get file path
 		filePath := strings.TrimPrefix(url, "sqlite://")
 		return &dbConfig{
-			dbType:       "sqlite",
+			dbType:        "sqlite",
 			connectionStr: filePath,
 		}, nil
 	}
@@ -85,6 +87,27 @@ func parseTableList(tablesStr string) []string {
 		tableList[i] = strings.TrimSpace(t)
 	}
 	return tableList
+}
+
+func filterExcludedTables(s *schema.Schema, excludeList []string) {
+	if len(excludeList) == 0 {
+		return
+	}
+
+	// Create a set of excluded table names for fast lookup
+	excludeSet := make(map[string]bool)
+	for _, tableName := range excludeList {
+		excludeSet[tableName] = true
+	}
+
+	// Filter out excluded tables
+	filteredTables := make([]schema.Table, 0, len(s.Tables))
+	for _, table := range s.Tables {
+		if !excludeSet[table.Name] {
+			filteredTables = append(filteredTables, table)
+		}
+	}
+	s.Tables = filteredTables
 }
 
 func extractSchema(ctx context.Context, config *dbConfig, tableList []string) (*schema.Schema, error) {
@@ -232,6 +255,10 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	// Apply table exclusions
+	excludeList := parseTableList(excludeTables)
+	filterExcludedTables(extractedSchema, excludeList)
 
 	// Format and output the schema
 	return formatOutput(extractedSchema)
