@@ -13,9 +13,7 @@ import (
 )
 
 var (
-	pgURL          string
-	mysqlURL       string
-	sqlitePath     string
+	dbURL          string
 	outputFile     string
 	outputDir      string
 	tables         string
@@ -32,9 +30,7 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.Flags().StringVar(&pgURL, "pg-url", "", "PostgreSQL connection string")
-	rootCmd.Flags().StringVar(&mysqlURL, "mysql-url", "", "MySQL connection string")
-	rootCmd.Flags().StringVar(&sqlitePath, "sqlite", "", "SQLite database file path")
+	rootCmd.Flags().StringVar(&dbURL, "db-url", "", "Database connection string (postgres://, mysql://, or sqlite://)")
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&outputDir, "output-dir", "d", "", "Output directory for multi-file output")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
@@ -43,24 +39,43 @@ func init() {
 	rootCmd.Flags().IntVar(&splitThreshold, "split-threshold", 0, "Split into multiple files when table count exceeds this (requires --output-dir)")
 }
 
-func validateDatabaseFlags() error {
-	dbCount := 0
-	if pgURL != "" {
-		dbCount++
+type dbConfig struct {
+	dbType       string // "postgres", "mysql", or "sqlite"
+	connectionStr string // processed connection string for the specific driver
+}
+
+func parseDatabaseURL(url string) (*dbConfig, error) {
+	if url == "" {
+		return nil, fmt.Errorf("--db-url is required")
 	}
-	if mysqlURL != "" {
-		dbCount++
+
+	// Detect database type from scheme
+	if strings.HasPrefix(url, "postgres://") || strings.HasPrefix(url, "postgresql://") {
+		return &dbConfig{
+			dbType:       "postgres",
+			connectionStr: url,
+		}, nil
 	}
-	if sqlitePath != "" {
-		dbCount++
+
+	if strings.HasPrefix(url, "mysql://") {
+		// Strip mysql:// prefix for the Go MySQL driver
+		connectionStr := strings.TrimPrefix(url, "mysql://")
+		return &dbConfig{
+			dbType:       "mysql",
+			connectionStr: connectionStr,
+		}, nil
 	}
-	if dbCount == 0 {
-		return fmt.Errorf("one of --pg-url, --mysql-url, or --sqlite must be specified")
+
+	if strings.HasPrefix(url, "sqlite://") {
+		// Strip sqlite:// prefix to get file path
+		filePath := strings.TrimPrefix(url, "sqlite://")
+		return &dbConfig{
+			dbType:       "sqlite",
+			connectionStr: filePath,
+		}, nil
 	}
-	if dbCount > 1 {
-		return fmt.Errorf("only one of --pg-url, --mysql-url, or --sqlite can be specified")
-	}
-	return nil
+
+	return nil, fmt.Errorf("invalid database URL scheme (must start with postgres://, mysql://, or sqlite://)")
 }
 
 func parseTableList(tablesStr string) []string {
@@ -74,17 +89,21 @@ func parseTableList(tablesStr string) []string {
 	return tableList
 }
 
-func extractSchema(ctx context.Context, tableList []string) (*schema.Schema, error) {
-	if sqlitePath != "" {
-		return extractSQLiteSchema(ctx, tableList)
-	} else if mysqlURL != "" {
-		return extractMySQLSchema(ctx, tableList)
+func extractSchema(ctx context.Context, config *dbConfig, tableList []string) (*schema.Schema, error) {
+	switch config.dbType {
+	case "sqlite":
+		return extractSQLiteSchema(ctx, config.connectionStr, tableList)
+	case "mysql":
+		return extractMySQLSchema(ctx, config.connectionStr, tableList)
+	case "postgres":
+		return extractPostgresSchema(ctx, config.connectionStr, tableList)
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", config.dbType)
 	}
-	return extractPostgresSchema(ctx, tableList)
 }
 
-func extractSQLiteSchema(ctx context.Context, tableList []string) (*schema.Schema, error) {
-	client, err := db.NewSQLiteClient(ctx, sqlitePath)
+func extractSQLiteSchema(ctx context.Context, filePath string, tableList []string) (*schema.Schema, error) {
+	client, err := db.NewSQLiteClient(ctx, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
 	}
@@ -102,8 +121,8 @@ func extractSQLiteSchema(ctx context.Context, tableList []string) (*schema.Schem
 	return extractedSchema, nil
 }
 
-func extractMySQLSchema(ctx context.Context, tableList []string) (*schema.Schema, error) {
-	client, err := db.NewMySQLClient(ctx, mysqlURL)
+func extractMySQLSchema(ctx context.Context, connectionStr string, tableList []string) (*schema.Schema, error) {
+	client, err := db.NewMySQLClient(ctx, connectionStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to MySQL: %w", err)
 	}
@@ -116,7 +135,7 @@ func extractMySQLSchema(ctx context.Context, tableList []string) (*schema.Schema
 	// Auto-detect database name from connection string if schema not specified
 	mysqlSchema := schemaName
 	if mysqlSchema == "" {
-		mysqlSchema, err = db.ParseDatabaseName(mysqlURL)
+		mysqlSchema, err = db.ParseDatabaseName(connectionStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to determine database name: %w (please specify --schema)", err)
 		}
@@ -130,8 +149,8 @@ func extractMySQLSchema(ctx context.Context, tableList []string) (*schema.Schema
 	return extractedSchema, nil
 }
 
-func extractPostgresSchema(ctx context.Context, tableList []string) (*schema.Schema, error) {
-	client, err := db.NewPostgresClient(ctx, pgURL)
+func extractPostgresSchema(ctx context.Context, connectionStr string, tableList []string) (*schema.Schema, error) {
+	client, err := db.NewPostgresClient(ctx, connectionStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", err)
 	}
@@ -204,8 +223,9 @@ func formatOutput(extractedSchema *schema.Schema) error {
 func run(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Validate database flags
-	if err := validateDatabaseFlags(); err != nil {
+	// Parse and validate database URL
+	config, err := parseDatabaseURL(dbURL)
+	if err != nil {
 		return err
 	}
 
@@ -213,7 +233,7 @@ func run(cmd *cobra.Command, args []string) error {
 	tableList := parseTableList(tables)
 
 	// Extract schema based on database type
-	extractedSchema, err := extractSchema(ctx, tableList)
+	extractedSchema, err := extractSchema(ctx, config, tableList)
 	if err != nil {
 		return err
 	}

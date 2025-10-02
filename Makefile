@@ -41,22 +41,22 @@ docker-clean:
 # Test PostgreSQL output (text format)
 test-postgres: build docker-up-postgres
 	@echo "\n=== Testing PostgreSQL (text format) ==="
-	./llmschema --pg-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
+	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
 
 # Test PostgreSQL output (markdown format)
 test-postgres-md: build docker-up-postgres
 	@echo "\n=== Testing PostgreSQL (markdown format) ==="
-	./llmschema --pg-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" --format markdown
+	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" --format markdown
 
 # Test MySQL output (text format)
 test-mysql: build docker-up-mysql
 	@echo "\n=== Testing MySQL (text format) ==="
-	./llmschema --mysql-url "root:testpassword@tcp(localhost:3306)/testdb"
+	./llmschema --db-url "mysql://root:testpassword@tcp(localhost:3306)/testdb"
 
 # Test MySQL output (markdown format)
 test-mysql-md: build docker-up-mysql
 	@echo "\n=== Testing MySQL (markdown format) ==="
-	./llmschema --mysql-url "root:testpassword@tcp(localhost:3306)/testdb" --format markdown
+	./llmschema --db-url "mysql://root:testpassword@tcp(localhost:3306)/testdb" --format markdown
 
 # Setup SQLite test database
 setup-sqlite:
@@ -67,12 +67,12 @@ setup-sqlite:
 # Test SQLite output (text format)
 test-sqlite: build setup-sqlite
 	@echo "\n=== Testing SQLite (text format) ==="
-	./llmschema --sqlite test.db
+	./llmschema --db-url "sqlite://test.db"
 
 # Test SQLite output (markdown format)
 test-sqlite-md: build setup-sqlite
 	@echo "\n=== Testing SQLite (markdown format) ==="
-	./llmschema --sqlite test.db --format markdown
+	./llmschema --db-url "sqlite://test.db" --format markdown
 
 # Run integration tests against all databases
 test-integration: build docker-up setup-sqlite
@@ -84,9 +84,9 @@ test-all: build docker-up setup-sqlite
 	@echo "\n=== Testing PostgreSQL ==="
 	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
 	@echo "\n=== Testing MySQL ==="
-	./llmschema --mysql-url "root:testpassword@tcp(localhost:3306)/testdb"
+	./llmschema --db-url "mysql://root:testpassword@tcp(localhost:3306)/testdb"
 	@echo "\n=== Testing SQLite ==="
-	./llmschema --sqlite test.db
+	./llmschema --db-url "sqlite://test.db"
 
 # Show database logs
 logs:

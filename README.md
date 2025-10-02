@@ -1,13 +1,23 @@
 # LLMSchema
 
-Generate clean, LLM-optimized documentation from your database schema. Extracts tables, columns, relationships, and constraints into a compact text format that AI coding assistants can easily understand. Makes working with Claude, ChatGPT, and other LLMs on database projects seamless.
+Generate clean, LLM-optimized documentation from your database schema. Extracts tables, columns, relationships, and constraints into a compact format that AI coding assistants can easily understand and reference.
+
+## Why LLMSchema?
+
+When working with AI coding assistants on database-heavy projects, providing schema context is essential. LLMSchema generates token-efficient schema documentation that you can:
+
+- **Version control** alongside your codebase
+- **Auto-generate** on database migrations
+- **Reference** in AI agent instructions (e.g., `CLAUDE.md`, `.cursorrules`)
+- **Keep in sync** with your actual database structure
 
 ## Features
 
-- **PostgreSQL support** - Extract schema from PostgreSQL databases
+- **Multiple database support** - PostgreSQL, MySQL, SQLite
 - **Compact format** - Token-efficient text output optimized for LLMs
-- **Complete schema** - Tables, columns, data types, relationships, indexes
+- **Complete schema** - Tables, columns, data types, relationships, indexes, constraints
 - **Flexible filtering** - Extract specific tables or entire schemas
+- **Multiple formats** - Text (compact) or Markdown (structured tables)
 - **CLI-friendly** - Output to stdout or file
 
 ## Installation
@@ -24,32 +34,37 @@ cd llmschema
 go build -o llmschema ./cmd/llmschema
 ```
 
-## Usage
+## Quick Start
 
-### Basic Usage
-
-Extract entire schema from a PostgreSQL database:
+### Extract Schema
 
 ```bash
-llmschema --db-url "postgres://user:password@localhost:5432/mydb"
-```
+# PostgreSQL
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o llm-docs/db-schema.txt
 
-### Save to File
+# MySQL
+llmschema --db-url "mysql://user:password@tcp(localhost:3306)/mydb" -o llm-docs/db-schema.txt
 
-```bash
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o schema.txt
+# SQLite
+llmschema --db-url "sqlite://database.db" -o llm-docs/db-schema.txt
 ```
 
 ### Extract Specific Tables
 
 ```bash
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts,comments"
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts,comments" -o llm-docs/core-tables.txt
 ```
 
-### Specify Schema
+### Markdown Format
 
 ```bash
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -s "my_schema"
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -f markdown -o llm-docs/db-schema.md
+```
+
+### Specify Schema (PostgreSQL/MySQL)
+
+```bash
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -s "my_schema" -o llm-docs/db-schema.txt
 ```
 
 ## Output Format
@@ -81,51 +96,81 @@ TABLE posts (PK: id)
     idx_posts_user_id (user_id)
 ```
 
-## CLI Flags
+## Recommended Workflow
 
-| Flag | Short | Description | Required | Default |
-|------|-------|-------------|----------|---------|
-| `--db-url` | - | PostgreSQL connection string | Yes | - |
-| `--output` | `-o` | Output file path | No | stdout |
-| `--tables` | `-t` | Comma-separated list of tables | No | All tables |
-| `--schema` | `-s` | Database schema name | No | public |
+### 1. Create a Documentation Directory
 
-## Connection String Format
+```bash
+mkdir -p llm-docs/db-schema
+```
 
+### 2. Generate Schema Documentation
+
+Manually or as part of your migration process:
+
+```bash
+llmschema --db-url "$DATABASE_URL" -o llm-docs/db-schema/schema.txt
+```
+
+### 3. Integrate with AI Agents
+
+Add to your `CLAUDE.md` (for Claude Code) or `.cursorrules` (for Cursor):
+
+```markdown
+## Database Schema
+
+The current database schema is documented in `llm-docs/db-schema`.
+When working with database-related code:
+- Reference this file to understand table structures and relationships
+- Check column types, constraints, and indexes
+- Verify foreign key relationships before writing queries
+```
+
+### 4. Automate with Migrations
+
+Add to your migration scripts or CI/CD pipeline:
+
+```bash
+#!/bin/bash
+# After running migrations
+llmschema --db-url "$DATABASE_URL" -o llm-docs/db-schema/schema.txt
+git add llm-docs/db-schema/schema.txt
+git commit -m "Update database schema documentation"
+```
+
+## CLI Options
+
+| Flag | Short | Description | Default |
+|------|-------|-------------|---------|
+| `--db-url` | - | Database connection string (required) | - |
+| `--output` | `-o` | Output file path | stdout |
+| `--output-dir` | `-d` | Output directory for multi-file output | - |
+| `--tables` | `-t` | Comma-separated list of tables to extract | All tables |
+| `--schema` | `-s` | Database schema name (PostgreSQL/MySQL) | `public` for PostgreSQL, auto-detected for MySQL |
+| `--format` | `-f` | Output format: `text` or `markdown` | `text` |
+| `--split-threshold` | - | Split into multiple files when table count exceeds this (requires --output-dir) | 0 (disabled) |
+
+## Connection String Formats
+
+**PostgreSQL:**
 ```
 postgres://username:password@host:port/database?sslmode=disable
 ```
 
-Examples:
-- `postgres://postgres:password@localhost:5432/mydb`
-- `postgres://user:pass@db.example.com:5432/production?sslmode=require`
-
-## Use Cases
-
-- **AI-Assisted Development** - Provide schema context to Claude Code, Cursor, or ChatGPT
-- **Documentation** - Generate readable schema documentation
-- **Schema Review** - Quickly understand database structure
-- **Migration Planning** - Analyze existing schemas before migrations
-
-## Project Structure
-
+**MySQL:**
 ```
-llmschema/
-├── cmd/
-│   └── llmschema/
-│       └── main.go           # CLI entry point
-├── internal/
-│   ├── db/
-│   │   ├── postgres.go       # PostgreSQL connection
-│   │   └── extractor.go      # Schema extraction logic
-│   ├── schema/
-│   │   └── types.go          # Data structures
-│   └── formatter/
-│       └── text.go           # Text output formatter
-├── go.mod
-└── README.md
+mysql://username:password@tcp(host:port)/database
 ```
+
+**SQLite:**
+```
+sqlite://path/to/database.db
+```
+
+## Contributing
+
+Contributions are welcome! Please open an issue or pull request on GitHub.
 
 ## License
 
-See LICENSE file for details.
+MIT License - see LICENSE file for details.
