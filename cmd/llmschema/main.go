@@ -31,7 +31,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "public", "Schema name (default: public)")
-	rootCmd.Flags().StringVarP(&format, "format", "f", "markdown", "Output format: text or markdown (default: markdown)")
+	rootCmd.Flags().StringVarP(&format, "format", "f", "text", "Output format: text or markdown (default: text)")
 
 	rootCmd.MarkFlagRequired("db-url")
 }
