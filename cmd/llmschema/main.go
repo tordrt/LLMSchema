@@ -12,11 +12,13 @@ import (
 )
 
 var (
-	dbURL      string
-	outputFile string
-	tables     string
-	schemaName string
-	format     string
+	dbURL       string
+	outputFile  string
+	outputDir   string
+	tables      string
+	schemaName  string
+	format      string
+	splitThreshold int
 )
 
 var rootCmd = &cobra.Command{
@@ -29,9 +31,11 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringVar(&dbURL, "db-url", "", "PostgreSQL connection string (required)")
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
+	rootCmd.Flags().StringVarP(&outputDir, "output-dir", "d", "", "Output directory for multi-file output")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "public", "Schema name (default: public)")
 	rootCmd.Flags().StringVarP(&format, "format", "f", "text", "Output format: text or markdown (default: text)")
+	rootCmd.Flags().IntVar(&splitThreshold, "split-threshold", 0, "Split into multiple files when table count exceeds this (requires --output-dir)")
 
 	rootCmd.MarkFlagRequired("db-url")
 }
@@ -64,7 +68,24 @@ func run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to extract schema: %w", err)
 	}
 
-	// Determine output writer
+	// Check if we should use multi-file output
+	shouldSplit := outputDir != "" && (splitThreshold == 0 || len(schema.Tables) > splitThreshold)
+
+	// Validate flag combinations
+	if outputDir != "" && outputFile != "" {
+		return fmt.Errorf("cannot use both --output-dir and --output flags")
+	}
+
+	// Multi-file output
+	if shouldSplit {
+		multiFormatter := formatter.NewMultiFileFormatter(outputDir, format)
+		if err := multiFormatter.Format(schema); err != nil {
+			return fmt.Errorf("failed to format output: %w", err)
+		}
+		return nil
+	}
+
+	// Single-file output
 	var writer = os.Stdout
 	if outputFile != "" {
 		f, err := os.Create(outputFile)
