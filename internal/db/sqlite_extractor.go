@@ -59,7 +59,7 @@ func (e *SQLiteExtractor) getTableNames(ctx context.Context, requestedTables []s
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tableList []string
 	for rows.Next() {
@@ -116,7 +116,7 @@ func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var columns []schema.Column
 	var pkColumns []string
@@ -179,7 +179,7 @@ func (e *SQLiteExtractor) isColumnUnique(ctx context.Context, tableName, columnN
 	if err != nil {
 		return false, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var seq int
@@ -195,7 +195,7 @@ func (e *SQLiteExtractor) isColumnUnique(ctx context.Context, tableName, columnN
 			indexQuery := fmt.Sprintf("PRAGMA index_info(%s)", name)
 			indexRows, err := e.client.GetDB().QueryContext(ctx, indexQuery)
 			if err != nil {
-				indexRows.Close()
+				_ = indexRows.Close()
 				continue
 			}
 
@@ -205,7 +205,7 @@ func (e *SQLiteExtractor) isColumnUnique(ctx context.Context, tableName, columnN
 				var colName sql.NullString
 
 				if err := indexRows.Scan(&seqno, &cid, &colName); err != nil {
-					indexRows.Close()
+					_ = indexRows.Close()
 					continue
 				}
 
@@ -213,7 +213,7 @@ func (e *SQLiteExtractor) isColumnUnique(ctx context.Context, tableName, columnN
 					indexColumns = append(indexColumns, colName.String)
 				}
 			}
-			indexRows.Close()
+			_ = indexRows.Close()
 
 			// If this is a single-column unique index on our column
 			if len(indexColumns) == 1 && indexColumns[0] == columnName {
@@ -233,7 +233,7 @@ func (e *SQLiteExtractor) extractPrimaryKey(ctx context.Context, tableName strin
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var pk []string
 
@@ -263,7 +263,7 @@ func (e *SQLiteExtractor) extractRelations(ctx context.Context, tableName string
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var relations []schema.Relation
 
@@ -296,7 +296,7 @@ func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var indexes []schema.Index
 
@@ -327,7 +327,7 @@ func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) 
 			var colName sql.NullString
 
 			if err := indexRows.Scan(&seqno, &cid, &colName); err != nil {
-				indexRows.Close()
+				_ = indexRows.Close()
 				return nil, err
 			}
 
@@ -335,7 +335,7 @@ func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) 
 				columns = append(columns, colName.String)
 			}
 		}
-		indexRows.Close()
+		_ = indexRows.Close()
 
 		if len(columns) > 0 {
 			idx := schema.Index{

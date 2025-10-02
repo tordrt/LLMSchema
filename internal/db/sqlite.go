@@ -22,7 +22,7 @@ func NewSQLiteClient(ctx context.Context, path string) (*SQLiteClient, error) {
 
 	// Test the connection
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 

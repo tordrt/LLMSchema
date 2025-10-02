@@ -21,7 +21,7 @@ func NewPostgresClient(ctx context.Context, connString string) (*PostgresClient,
 
 	// Test the connection
 	if err := conn.Ping(ctx); err != nil {
-		conn.Close(ctx)
+		_ = conn.Close(ctx)
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 

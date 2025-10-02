@@ -13,13 +13,13 @@ import (
 )
 
 var (
-	dbURL       string
-	sqlitePath  string
-	outputFile  string
-	outputDir   string
-	tables      string
-	schemaName  string
-	format      string
+	dbURL          string
+	sqlitePath     string
+	outputFile     string
+	outputDir      string
+	tables         string
+	schemaName     string
+	format         string
 	splitThreshold int
 )
 
@@ -70,7 +70,11 @@ func run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to connect to SQLite: %w", err)
 		}
-		defer client.Close()
+		defer func() {
+			if err := client.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to close SQLite connection: %v\n", err)
+			}
+		}()
 
 		extractor := db.NewSQLiteExtractor(client)
 		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
@@ -83,7 +87,11 @@ func run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to connect to PostgreSQL: %w", err)
 		}
-		defer client.Close(ctx)
+		defer func() {
+			if err := client.Close(ctx); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to close PostgreSQL connection: %v\n", err)
+			}
+		}()
 
 		extractor := db.NewExtractor(client, schemaName)
 		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
@@ -116,7 +124,11 @@ func run(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to create output file: %w", err)
 		}
-		defer f.Close()
+		defer func() {
+			if err := f.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to close output file: %v\n", err)
+			}
+		}()
 		writer = f
 	}
 

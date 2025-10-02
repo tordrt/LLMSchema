@@ -55,7 +55,7 @@ func (f *MultiFileFormatter) writeOverview(s *schema.Schema) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	if f.OutputFormat == "markdown" {
 		return f.writeMarkdownOverview(file, s)
@@ -64,11 +64,11 @@ func (f *MultiFileFormatter) writeOverview(s *schema.Schema) error {
 }
 
 func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Schema) error {
-	fmt.Fprintf(file, "# Schema Overview\n\n")
-	fmt.Fprintf(file, "Total tables: %d\n\n", len(s.Tables))
+	_, _ = fmt.Fprintf(file, "# Schema Overview\n\n")
+	_, _ = fmt.Fprintf(file, "Total tables: %d\n\n", len(s.Tables))
 
 	// Table list
-	fmt.Fprintf(file, "## Tables\n\n")
+	_, _ = fmt.Fprintf(file, "## Tables\n\n")
 
 	// Sort tables alphabetically
 	sortedTables := make([]schema.Table, len(s.Tables))
@@ -78,30 +78,30 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Sche
 	})
 
 	for _, table := range sortedTables {
-		fmt.Fprintf(file, "- **%s** (%d columns)\n", table.Name, len(table.Columns))
-		fmt.Fprintf(file, "  - File: `%s%s`\n", table.Name, f.getFileExtension())
+		_, _ = fmt.Fprintf(file, "- **%s** (%d columns)\n", table.Name, len(table.Columns))
+		_, _ = fmt.Fprintf(file, "  - File: `%s%s`\n", table.Name, f.getFileExtension())
 
 		// Show primary key
 		if len(table.PrimaryKey) > 0 {
-			fmt.Fprintf(file, "  - Primary key: %s\n", strings.Join(table.PrimaryKey, ", "))
+			_, _ = fmt.Fprintf(file, "  - Primary key: %s\n", strings.Join(table.PrimaryKey, ", "))
 		}
 
 		// Show outgoing relationships
 		if len(table.Relations) > 0 {
-			fmt.Fprintf(file, "  - References: ")
+			_, _ = fmt.Fprintf(file, "  - References: ")
 			targets := []string{}
 			for _, rel := range table.Relations {
 				targets = append(targets, rel.TargetTable)
 			}
-			fmt.Fprintf(file, "%s\n", strings.Join(targets, ", "))
+			_, _ = fmt.Fprintf(file, "%s\n", strings.Join(targets, ", "))
 		}
 	}
 
 	// Relationship diagram
-	fmt.Fprintf(file, "\n## Relationships\n\n")
+	_, _ = fmt.Fprintf(file, "\n## Relationships\n\n")
 	for _, table := range sortedTables {
 		for _, rel := range table.Relations {
-			fmt.Fprintf(file, "- `%s.%s` → `%s.%s` (%s)\n",
+			_, _ = fmt.Fprintf(file, "- `%s.%s` → `%s.%s` (%s)\n",
 				table.Name, rel.SourceColumn,
 				rel.TargetTable, rel.TargetColumn,
 				rel.Cardinality)
@@ -112,8 +112,8 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Sche
 }
 
 func (f *MultiFileFormatter) writeTextOverview(file *os.File, s *schema.Schema) error {
-	fmt.Fprintf(file, "SCHEMA OVERVIEW\n")
-	fmt.Fprintf(file, "Tables: %d\n\n", len(s.Tables))
+	_, _ = fmt.Fprintf(file, "SCHEMA OVERVIEW\n")
+	_, _ = fmt.Fprintf(file, "Tables: %d\n\n", len(s.Tables))
 
 	// Sort tables alphabetically
 	sortedTables := make([]schema.Table, len(s.Tables))
@@ -123,24 +123,24 @@ func (f *MultiFileFormatter) writeTextOverview(file *os.File, s *schema.Schema) 
 	})
 
 	for _, table := range sortedTables {
-		fmt.Fprintf(file, "%s (%d cols", table.Name, len(table.Columns))
+		_, _ = fmt.Fprintf(file, "%s (%d cols", table.Name, len(table.Columns))
 		if len(table.PrimaryKey) > 0 {
-			fmt.Fprintf(file, ", pk: %s", strings.Join(table.PrimaryKey, ","))
+			_, _ = fmt.Fprintf(file, ", pk: %s", strings.Join(table.PrimaryKey, ","))
 		}
 		if len(table.Relations) > 0 {
 			targets := []string{}
 			for _, rel := range table.Relations {
 				targets = append(targets, rel.TargetTable)
 			}
-			fmt.Fprintf(file, ", refs: %s", strings.Join(targets, ","))
+			_, _ = fmt.Fprintf(file, ", refs: %s", strings.Join(targets, ","))
 		}
-		fmt.Fprintf(file, ") → %s%s\n", table.Name, f.getFileExtension())
+		_, _ = fmt.Fprintf(file, ") → %s%s\n", table.Name, f.getFileExtension())
 	}
 
-	fmt.Fprintf(file, "\nRELATIONSHIPS\n")
+	_, _ = fmt.Fprintf(file, "\nRELATIONSHIPS\n")
 	for _, table := range sortedTables {
 		for _, rel := range table.Relations {
-			fmt.Fprintf(file, "%s.%s → %s.%s (%s)\n",
+			_, _ = fmt.Fprintf(file, "%s.%s → %s.%s (%s)\n",
 				table.Name, rel.SourceColumn,
 				rel.TargetTable, rel.TargetColumn,
 				rel.Cardinality)
@@ -159,7 +159,7 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Create a schema with just this table for the formatter
 	singleTableSchema := &schema.Schema{
@@ -178,9 +178,9 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 		// Add incoming relationships
 		incomingRels := f.findIncomingRelations(table.Name, s)
 		if len(incomingRels) > 0 {
-			fmt.Fprintf(file, "\n## Referenced By\n\n")
+			_, _ = fmt.Fprintf(file, "\n## Referenced By\n\n")
 			for _, rel := range incomingRels {
-				fmt.Fprintf(file, "- `%s.%s` → `%s.%s` (%s)\n",
+				_, _ = fmt.Fprintf(file, "- `%s.%s` → `%s.%s` (%s)\n",
 					rel.SourceTable, rel.SourceColumn,
 					rel.TargetTable, rel.TargetColumn,
 					rel.Cardinality)
@@ -196,9 +196,9 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 		// Add incoming relationships
 		incomingRels := f.findIncomingRelations(table.Name, s)
 		if len(incomingRels) > 0 {
-			fmt.Fprintf(file, "\nREFERENCED BY:\n")
+			_, _ = fmt.Fprintf(file, "\nREFERENCED BY:\n")
 			for _, rel := range incomingRels {
-				fmt.Fprintf(file, "%s.%s → %s.%s (%s)\n",
+				_, _ = fmt.Fprintf(file, "%s.%s → %s.%s (%s)\n",
 					rel.SourceTable, rel.SourceColumn,
 					rel.TargetTable, rel.TargetColumn,
 					rel.Cardinality)
