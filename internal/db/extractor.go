@@ -112,10 +112,10 @@ func (e *Extractor) extractTable(ctx context.Context, tableName string) (*schema
 func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]schema.Column, error) {
 	query := `
 		SELECT
-			column_name,
-			data_type,
-			is_nullable,
-			column_default,
+			c.column_name,
+			c.data_type,
+			c.is_nullable,
+			c.column_default,
 			CASE WHEN EXISTS (
 				SELECT 1 FROM information_schema.table_constraints tc
 				JOIN information_schema.constraint_column_usage ccu
@@ -125,7 +125,8 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 					AND tc.table_name = $2
 					AND tc.constraint_type = 'UNIQUE'
 					AND ccu.column_name = c.column_name
-			) THEN true ELSE false END as is_unique
+			) THEN true ELSE false END as is_unique,
+			c.udt_name
 		FROM information_schema.columns c
 		WHERE table_schema = $1 AND table_name = $2
 		ORDER BY ordinal_position
@@ -138,22 +139,84 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 	defer rows.Close()
 
 	var columns []schema.Column
+	var enumTypes []string
+
+	// First pass: collect all columns and enum type names
 	for rows.Next() {
 		var col schema.Column
 		var nullable string
 		var defaultVal *string
+		var udtName string
 
-		if err := rows.Scan(&col.Name, &col.Type, &nullable, &defaultVal, &col.IsUnique); err != nil {
+		if err := rows.Scan(&col.Name, &col.Type, &nullable, &defaultVal, &col.IsUnique, &udtName); err != nil {
 			return nil, err
 		}
 
 		col.Nullable = (nullable == "YES")
 		col.DefaultValue = defaultVal
 
+		// If it's a USER-DEFINED type, remember it for later lookup
+		if col.Type == "USER-DEFINED" {
+			col.Type = udtName // Replace USER-DEFINED with actual enum type name
+			enumTypes = append(enumTypes, udtName)
+		}
+
 		columns = append(columns, col)
 	}
 
-	return columns, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Second pass: fetch enum values for all USER-DEFINED types
+	if len(enumTypes) > 0 {
+		enumValuesMap, err := e.extractEnumValuesMap(ctx, enumTypes)
+		if err != nil {
+			return nil, err
+		}
+
+		// Update columns with enum values
+		for i := range columns {
+			if values, ok := enumValuesMap[columns[i].Type]; ok {
+				columns[i].EnumValues = values
+			}
+		}
+	}
+
+	return columns, nil
+}
+
+// extractEnumValuesMap extracts enum values for multiple enum types at once
+func (e *Extractor) extractEnumValuesMap(ctx context.Context, enumTypeNames []string) (map[string][]string, error) {
+	if len(enumTypeNames) == 0 {
+		return make(map[string][]string), nil
+	}
+
+	query := `
+		SELECT t.typname, e.enumlabel
+		FROM pg_type t
+		JOIN pg_enum e ON t.oid = e.enumtypid
+		JOIN pg_namespace n ON t.typnamespace = n.oid
+		WHERE n.nspname = $1 AND t.typname = ANY($2)
+		ORDER BY t.typname, e.enumsortorder
+	`
+
+	rows, err := e.client.GetConnection().Query(ctx, query, e.schema, enumTypeNames)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]string)
+	for rows.Next() {
+		var typName, enumLabel string
+		if err := rows.Scan(&typName, &enumLabel); err != nil {
+			return nil, err
+		}
+		result[typName] = append(result[typName], enumLabel)
+	}
+
+	return result, rows.Err()
 }
 
 // extractPrimaryKey extracts primary key columns

@@ -73,8 +73,12 @@ func (f *TextFormatter) formatTable(table schema.Table) error {
 func (f *TextFormatter) formatColumn(col schema.Column) string {
 	parts := []string{col.Name + ":"}
 
-	// Type
-	parts = append(parts, col.Type)
+	// Type with enum values if present
+	typeStr := col.Type
+	if len(col.EnumValues) > 0 {
+		typeStr = fmt.Sprintf("%s (%s)", col.Type, strings.Join(col.EnumValues, "|"))
+	}
+	parts = append(parts, typeStr)
 
 	// Unique
 	if col.IsUnique {

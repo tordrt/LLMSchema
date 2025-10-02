@@ -47,9 +47,13 @@ func (f *MarkdownFormatter) formatTable(table schema.Table) error {
 	fmt.Fprintln(f.writer, "|--------|------|-------------|")
 
 	for _, col := range table.Columns {
+		typeStr := col.Type
+		if len(col.EnumValues) > 0 {
+			typeStr = fmt.Sprintf("%s (%s)", col.Type, strings.Join(col.EnumValues, "\\|"))
+		}
 		fmt.Fprintf(f.writer, "| %s | `%s` | %s |\n",
 			col.Name,
-			col.Type,
+			typeStr,
 			f.formatConstraints(col))
 	}
 	fmt.Fprintln(f.writer)

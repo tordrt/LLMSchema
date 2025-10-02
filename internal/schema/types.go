@@ -21,6 +21,7 @@ type Column struct {
 	Nullable     bool
 	DefaultValue *string
 	IsUnique     bool
+	EnumValues   []string // For USER-DEFINED enum types
 }
 
 // Relation represents a foreign key relationship
