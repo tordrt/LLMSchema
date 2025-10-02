@@ -38,7 +38,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&outputDir, "output-dir", "d", "", "Output directory for multi-file output")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
-	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "public", "Database schema name (default: public for PostgreSQL)")
+	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "", "Database schema name (optional: defaults to 'public' for PostgreSQL, auto-detected from connection string for MySQL)")
 	rootCmd.Flags().StringVarP(&format, "format", "f", "text", "Output format: text or markdown (default: text)")
 	rootCmd.Flags().IntVar(&splitThreshold, "split-threshold", 0, "Split into multiple files when table count exceeds this (requires --output-dir)")
 }
@@ -105,7 +105,16 @@ func run(cmd *cobra.Command, args []string) error {
 			}
 		}()
 
-		extractor := db.NewMySQLExtractor(client, schemaName)
+		// Auto-detect database name from connection string if schema not specified
+		mysqlSchema := schemaName
+		if mysqlSchema == "" {
+			mysqlSchema, err = db.ParseDatabaseName(mysqlURL)
+			if err != nil {
+				return fmt.Errorf("failed to determine database name: %w (please specify --schema)", err)
+			}
+		}
+
+		extractor := db.NewMySQLExtractor(client, mysqlSchema)
 		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
 		if err != nil {
 			return fmt.Errorf("failed to extract schema: %w", err)
@@ -122,7 +131,13 @@ func run(cmd *cobra.Command, args []string) error {
 			}
 		}()
 
-		extractor := db.NewExtractor(client, schemaName)
+		// Default to "public" schema if not specified
+		pgSchema := schemaName
+		if pgSchema == "" {
+			pgSchema = "public"
+		}
+
+		extractor := db.NewExtractor(client, pgSchema)
 		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
 		if err != nil {
 			return fmt.Errorf("failed to extract schema: %w", err)

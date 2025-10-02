@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 )
 
 // MySQLClient manages the connection to MySQL
@@ -37,4 +37,18 @@ func (c *MySQLClient) Close() error {
 // GetDB returns the underlying database connection
 func (c *MySQLClient) GetDB() *sql.DB {
 	return c.db
+}
+
+// ParseDatabaseName extracts the database name from a MySQL connection string
+func ParseDatabaseName(connString string) (string, error) {
+	cfg, err := mysql.ParseDSN(connString)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse MySQL connection string: %w", err)
+	}
+
+	if cfg.DBName == "" {
+		return "", fmt.Errorf("no database name found in connection string")
+	}
+
+	return cfg.DBName, nil
 }
