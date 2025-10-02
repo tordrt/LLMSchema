@@ -31,6 +31,11 @@ func (f *MarkdownFormatter) Format(s *schema.Schema) error {
 	return nil
 }
 
+// FormatTable formats a single table (exported for use by multifile formatter)
+func (f *MarkdownFormatter) FormatTable(table schema.Table) error {
+	return f.formatTable(table)
+}
+
 func (f *MarkdownFormatter) formatTable(table schema.Table) error {
 	// Table header
 	_, _ = fmt.Fprintf(f.writer, "## %s\n\n", table.Name)

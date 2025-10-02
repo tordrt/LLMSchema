@@ -32,6 +32,11 @@ func (f *TextFormatter) Format(s *schema.Schema) error {
 	return nil
 }
 
+// FormatTable formats a single table (exported for use by multifile formatter)
+func (f *TextFormatter) FormatTable(table schema.Table) error {
+	return f.formatTable(table)
+}
+
 func (f *TextFormatter) formatTable(table schema.Table) error {
 	// Table header with primary key
 	pkStr := ""
