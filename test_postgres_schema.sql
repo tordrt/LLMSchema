@@ -1,7 +1,7 @@
 -- Sample test schema for LLMSchema
 -- Run this to create a test database:
 -- createdb llmschema_test
--- psql llmschema_test < test_schema.sql
+-- psql llmschema_test < test_postgres_schema.sql
 -- Then test with: ./llmschema --db-url "postgres://localhost/llmschema_test"
 
 CREATE TABLE users (

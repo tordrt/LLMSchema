@@ -45,7 +45,7 @@ The extractor queries are optimized for a single schema at a time (default: "pub
 
 ## Testing
 
-No automated tests exist yet. Manual testing uses `test_schema.sql` for setting up a test database.
+No automated tests exist yet. Manual testing uses `test_postgres_schema.sql` for setting up a test database.
 
 ## Dependencies
 

@@ -14,6 +14,7 @@ import (
 
 var (
 	dbURL          string
+	mysqlURL       string
 	sqlitePath     string
 	outputFile     string
 	outputDir      string
@@ -26,17 +27,18 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "llmschema",
 	Short: "Extract database schema in LLM-friendly format",
-	Long:  `LLMSchema extracts database schemas from PostgreSQL or SQLite and outputs them in a compact, token-efficient format optimized for LLMs.`,
+	Long:  `LLMSchema extracts database schemas from PostgreSQL, MySQL, or SQLite and outputs them in a compact, token-efficient format optimized for LLMs.`,
 	RunE:  run,
 }
 
 func init() {
 	rootCmd.Flags().StringVar(&dbURL, "db-url", "", "PostgreSQL connection string")
+	rootCmd.Flags().StringVar(&mysqlURL, "mysql-url", "", "MySQL connection string")
 	rootCmd.Flags().StringVar(&sqlitePath, "sqlite", "", "SQLite database file path")
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	rootCmd.Flags().StringVarP(&outputDir, "output-dir", "d", "", "Output directory for multi-file output")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
-	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "public", "PostgreSQL schema name (default: public)")
+	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "public", "Database schema name (default: public for PostgreSQL)")
 	rootCmd.Flags().StringVarP(&format, "format", "f", "text", "Output format: text or markdown (default: text)")
 	rootCmd.Flags().IntVar(&splitThreshold, "split-threshold", 0, "Split into multiple files when table count exceeds this (requires --output-dir)")
 }
@@ -45,11 +47,21 @@ func run(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
 	// Validate database flags
-	if dbURL == "" && sqlitePath == "" {
-		return fmt.Errorf("either --db-url or --sqlite must be specified")
+	dbCount := 0
+	if dbURL != "" {
+		dbCount++
 	}
-	if dbURL != "" && sqlitePath != "" {
-		return fmt.Errorf("cannot use both --db-url and --sqlite")
+	if mysqlURL != "" {
+		dbCount++
+	}
+	if sqlitePath != "" {
+		dbCount++
+	}
+	if dbCount == 0 {
+		return fmt.Errorf("one of --db-url, --mysql-url, or --sqlite must be specified")
+	}
+	if dbCount > 1 {
+		return fmt.Errorf("only one of --db-url, --mysql-url, or --sqlite can be specified")
 	}
 
 	// Parse table list
@@ -77,6 +89,23 @@ func run(cmd *cobra.Command, args []string) error {
 		}()
 
 		extractor := db.NewSQLiteExtractor(client)
+		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
+		if err != nil {
+			return fmt.Errorf("failed to extract schema: %w", err)
+		}
+	} else if mysqlURL != "" {
+		// MySQL mode
+		client, err := db.NewMySQLClient(ctx, mysqlURL)
+		if err != nil {
+			return fmt.Errorf("failed to connect to MySQL: %w", err)
+		}
+		defer func() {
+			if err := client.Close(); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: failed to close MySQL connection: %v\n", err)
+			}
+		}()
+
+		extractor := db.NewMySQLExtractor(client, schemaName)
 		extractedSchema, err = extractor.ExtractSchema(ctx, tableList)
 		if err != nil {
 			return fmt.Errorf("failed to extract schema: %w", err)
