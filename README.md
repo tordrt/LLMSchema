@@ -36,17 +36,27 @@ go build -o llmschema ./cmd/llmschema
 
 ## Quick Start
 
-### Extract Schema
+### Extract Schema (Recommended: Multi-file Output)
+
+For production databases with many tables, use `--output-dir` to generate one file per table. This keeps LLM context small by loading only relevant tables:
 
 ```bash
-# PostgreSQL
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o llm-docs/db-schema.txt
+# PostgreSQL - creates llm-docs/db-schema/_overview.txt + one file per table
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -d llm-docs/db-schema
 
 # MySQL
-llmschema --db-url "mysql://user:password@tcp(localhost:3306)/mydb" -o llm-docs/db-schema.txt
+llmschema --db-url "mysql://user:password@tcp(localhost:3306)/mydb" -d llm-docs/db-schema
 
 # SQLite
-llmschema --db-url "sqlite://database.db" -o llm-docs/db-schema.txt
+llmschema --db-url "sqlite://database.db" -d llm-docs/db-schema
+```
+
+### Single File Output (Small Databases)
+
+For small databases or quick inspection:
+
+```bash
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o llm-docs/db-schema.txt
 ```
 
 ### Extract Specific Tables
@@ -58,13 +68,13 @@ llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,post
 ### Markdown Format
 
 ```bash
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -f markdown -o llm-docs/db-schema.md
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -f markdown -d llm-docs/db-schema
 ```
 
 ### Specify Schema (PostgreSQL/MySQL)
 
 ```bash
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -s "my_schema" -o llm-docs/db-schema.txt
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -s "my_schema" -d llm-docs/db-schema
 ```
 
 ## Output Format
@@ -98,44 +108,49 @@ TABLE posts (PK: id)
 
 ## Recommended Workflow
 
-### 1. Create a Documentation Directory
+### 1. Generate Schema Documentation
+
+Use multi-file output to keep context efficient:
 
 ```bash
-mkdir -p llm-docs/db-schema
+# Generate one file per table + overview
+llmschema --db-url "$DATABASE_URL" -d llm-docs/db-schema
+
+# This creates:
+# llm-docs/db-schema/_overview.txt       (list of all tables)
+# llm-docs/db-schema/users.txt           (users table details)
+# llm-docs/db-schema/posts.txt           (posts table details)
+# llm-docs/db-schema/comments.txt        (comments table details)
+# ... (one file per table)
 ```
 
-### 2. Generate Schema Documentation
-
-Manually or as part of your migration process:
-
-```bash
-llmschema --db-url "$DATABASE_URL" -o llm-docs/db-schema/schema.txt
-```
-
-### 3. Integrate with AI Agents
+### 2. Integrate with AI Agents
 
 Add to your `CLAUDE.md` (for Claude Code) or `.cursorrules` (for Cursor):
 
 ```markdown
 ## Database Schema
 
-The current database schema is documented in `llm-docs/db-schema`.
+The current database schema is documented in `llm-docs/db-schema/`.
+
+- Start with `_overview.txt` to see all available tables
+- Load specific table files (e.g., `users.txt`) when working with that table
+- Each file contains: columns, types, constraints, relationships, and indexes
+
 When working with database-related code:
-- Reference this file to understand table structures and relationships
-- Check column types, constraints, and indexes
+- Check `_overview.txt` to understand the overall structure
+- Reference specific table files to understand details
 - Verify foreign key relationships before writing queries
 ```
 
-### 4. Automate with Migrations
+### 3. Automate with Migrations
 
 Add to your migration scripts or CI/CD pipeline:
 
 ```bash
 #!/bin/bash
 # After running migrations
-llmschema --db-url "$DATABASE_URL" -o llm-docs/db-schema/schema.txt
-git add llm-docs/db-schema/schema.txt
-git commit -m "Update database schema documentation"
+llmschema --db-url "$DATABASE_URL" -d llm-docs/db-schema
 ```
 
 ## CLI Options
@@ -148,7 +163,6 @@ git commit -m "Update database schema documentation"
 | `--tables` | `-t` | Comma-separated list of tables to extract | All tables |
 | `--schema` | `-s` | Database schema name (PostgreSQL/MySQL) | `public` for PostgreSQL, auto-detected for MySQL |
 | `--format` | `-f` | Output format: `text` or `markdown` | `text` |
-| `--split-threshold` | - | Split into multiple files when table count exceeds this (requires --output-dir) | 0 (disabled) |
 
 ## Connection String Formats
 

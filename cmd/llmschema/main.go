@@ -13,13 +13,12 @@ import (
 )
 
 var (
-	dbURL          string
-	outputFile     string
-	outputDir      string
-	tables         string
-	schemaName     string
-	format         string
-	splitThreshold int
+	dbURL      string
+	outputFile string
+	outputDir  string
+	tables     string
+	schemaName string
+	format     string
 )
 
 var rootCmd = &cobra.Command{
@@ -36,7 +35,6 @@ func init() {
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "", "Database schema name (optional: defaults to 'public' for PostgreSQL, auto-detected from connection string for MySQL)")
 	rootCmd.Flags().StringVarP(&format, "format", "f", "text", "Output format: text or markdown (default: text)")
-	rootCmd.Flags().IntVar(&splitThreshold, "split-threshold", 0, "Split into multiple files when table count exceeds this (requires --output-dir)")
 }
 
 type dbConfig struct {
@@ -175,16 +173,13 @@ func extractPostgresSchema(ctx context.Context, connectionStr string, tableList 
 }
 
 func formatOutput(extractedSchema *schema.Schema) error {
-	// Check if we should use multi-file output
-	shouldSplit := outputDir != "" && (splitThreshold == 0 || len(extractedSchema.Tables) > splitThreshold)
-
 	// Validate flag combinations
 	if outputDir != "" && outputFile != "" {
 		return fmt.Errorf("cannot use both --output-dir and --output flags")
 	}
 
 	// Multi-file output
-	if shouldSplit {
+	if outputDir != "" {
 		multiFormatter := formatter.NewMultiFileFormatter(outputDir, format)
 		if err := multiFormatter.Format(extractedSchema); err != nil {
 			return fmt.Errorf("failed to format output: %w", err)
