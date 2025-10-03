@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/tordrt/llmschema/db"
-	"github.com/tordrt/llmschema/formatter"
-	"github.com/tordrt/llmschema/schema"
+	"github.com/tordrt/llmschema/internal/db"
+	"github.com/tordrt/llmschema/internal/formatter"
+	"github.com/tordrt/llmschema/internal/schema"
 )
 
 // Options configures schema extraction
