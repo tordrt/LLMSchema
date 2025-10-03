@@ -1,14 +1,17 @@
 # LLMSchema
 
-Extract database schemas into LLM-optimized documentation. Supports PostgreSQL, MySQL, and SQLite with markdown output.
+Generate database schema documentation optimized for AI agents. Extracts schemas from PostgreSQL, MySQL, and SQLite into markdown files that AI assistants can efficiently browse and which humans can easily reference.
+
+**Primary use:** AI agent consumption (Claude Code, Cursor, etc.)
+
+**Secondary use:** Human-readable documentation
 
 ## Features
 
-- Multiple database support (PostgreSQL, MySQL, SQLite)
-- Compact, LLM-friendly output format
-- Complete schema extraction (tables, columns, types, relationships, indexes, constraints)
-- Multi-file output on a per-table basis for llm context efficiency
-- CLI-friendly with stdout or file output
+- Simple and concise markdown output with structured tables
+- Multi-file output (one file per table) for efficient context referencing and browsing by agents
+- Complete schema extraction: columns, types, relationships, indexes, constraints
+- Multiple database support: PostgreSQL, MySQL, SQLite.
 
 ## Installation
 
@@ -30,79 +33,92 @@ go build -o llmschema ./cmd/llmschema
 # Multi-file output (recommended)
 llmschema --db-url "postgres://user:password@localhost:5432/mydb" -d llm-docs/db-schema
 
-# Single file output (recommended for small schemas)
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o schema.txt
+# Single file output
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o schema.md
 
 # Specific tables only
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts" -o schema.txt
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts" -d output
 
 # Exclude specific tables
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -e "migrations,audit_logs" -o schema.txt
-```
-
-## Output Format
-
-```
-TABLE users (PK: id)
-  id: bigserial NOT NULL
-  email: varchar UNIQUE NOT NULL
-  created_at: timestamp DEFAULT now()
-
-  RELATIONS:
-    → posts.user_id (N:1)
-    → profiles.user_id (N:1)
-
-  INDEXES:
-    idx_users_email (email) UNIQUE
-
-TABLE posts (PK: id)
-  id: bigserial NOT NULL
-  user_id: bigint NOT NULL
-  title: varchar NOT NULL
-  content: text
-  created_at: timestamp DEFAULT now()
-
-  RELATIONS:
-    → users.id (N:1)
-
-  INDEXES:
-    idx_posts_user_id (user_id)
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -e "migrations,audit_logs" -d output
 ```
 
 ## Workflow
 
-Generate schema docs (ideally automate by coupling command with db migrations):
-
+**1. Generate schema documentation** (ideally automate this with your DB migrations):
 ```bash
 llmschema --db-url "$DATABASE_URL" -d llm-docs/db-schema
 ```
 
-Reference in your `CLAUDE.md` or `.cursorrules`:
-
+**2. Add instructions to your AI context file** (`CLAUDE.md`, `.cursorrules`, etc.):
 ```markdown
 ## Database Schema
 
-The current database schema is documented in `llm-docs/db-schema/`.
+Schema docs are in `llm-docs/db-schema/`:
+- `_overview.md` - lists all tables and their relationships
+- `<table_name>.md` - detailed schema for each table
 
-- Read `_overview.txt` to see all available tables
-- Load specific table files (e.g., `users.txt`) when working with that table
-- Each file contains: columns, types, constraints, relationships, and indexes
+When working with database code, read `_overview.md` for an overview and load specific table files as needed.
+```
 
-When working with database-related code:
-- Check `_overview.txt` to understand the overall structure
-- Reference specific table files to understand details
+**3. AI agents can now:** Browse the overview to understand structure, then load specific tables on-demand for efficient context usage.
+
+## Output Format
+
+Multi-file output creates an overview file plus one file per table:
+
+### `_overview.md`
+
+```markdown
+# Schema Overview
+
+Each table has a corresponding file: `<table_name>.md`
+
+## Tables
+
+- **order_items** (references: orders, products)
+- **orders** (references: users)
+- **products**
+- **users**
+```
+
+### `orders.md`
+
+```markdown
+## orders
+
+| Column       | Type                                                                                                                 |
+|--------------|----------------------------------------------------------------------------------------------------------------------|
+| id           | PK integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass)                                                      |
+| user_id      | integer NOT NULL                                                                                                     |
+| total_amount | numeric NOT NULL                                                                                                     |
+| order_date   | timestamp DEFAULT CURRENT_TIMESTAMP                                                                                  |
+| status       | order_status (pending, processing, shipped, delivered, cancelled) DEFAULT 'pending'::order_status                    |
+
+### Index
+
+- idx_status on (status)
+- idx_user_date on (user_id, order_date)
+
+### References
+
+- user_id → users.id (many orders to one users)
+
+### Referenced by
+
+- order_items.order_id → id (many order_items to one orders)
 ```
 
 ## CLI Options
 
-| Flag | Short | Description | Default |
-|------|-------|-------------|---------|
-| `--db-url` | - | Database connection string (required) | - |
-| `--output` | `-o` | Output file path | stdout |
-| `--output-dir` | `-d` | Output directory for multi-file output | - |
-| `--tables` | `-t` | Comma-separated list of tables to extract | All tables |
-| `--exclude-tables` | `-e` | Comma-separated list of tables to exclude | - |
-| `--schema` | `-s` | Database schema name (PostgreSQL/MySQL) | `public` for PostgreSQL, auto-detected for MySQL |
+| Flag | Short | Description                                          | Default |
+|------|-------|------------------------------------------------------|---------|
+| `--db-url` | - | Database connection string (required)                | - |
+| `--output` | `-o` | Output file path                                     | stdout |
+| `--output-dir` | `-d` | Output directory for multi-file output (Recommended) | - |
+| `--tables` | `-t` | Comma-separated list of tables to extract            | All tables |
+| `--exclude-tables` | `-e` | Comma-separated list of tables to exclude            | - |
+| `--schema` | `-s` | Database schema name (PostgreSQL/MySQL)              | `public` for PostgreSQL, auto-detected for MySQL |
 
 ## Connection String Formats
 
@@ -119,7 +135,15 @@ sqlite://path/to/database.db
 
 ## Contributing
 
-Contributions are welcome! Please open an issue or pull request on GitHub.
+This is a new project I made for my own usage and likely has rough edges. Issue reports and contributions are very welcome!
+
+**Areas for improvement:**
+- Output format refinements
+- Support for additional databases
+- Alternative output formats
+- New features and ideas
+
+Please report bugs or suggest improvements at https://github.com/tordrt/llmschema/issues.
 
 ## License
 

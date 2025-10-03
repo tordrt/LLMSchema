@@ -31,7 +31,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.Flags().StringVar(&dbURL, "db-url", "", "Database connection string (postgres://, mysql://, or sqlite://)")
 	rootCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
-	rootCmd.Flags().StringVarP(&outputDir, "output-dir", "d", "", "Output directory for multi-file output")
+	rootCmd.Flags().StringVarP(&outputDir, "output-dir", "d", "", "Output directory for multi-file output (recommended)")
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&excludeTables, "exclude-tables", "e", "", "Tables to exclude (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "", "Database schema name (optional: defaults to 'public' for PostgreSQL, auto-detected from connection string for MySQL)")
