@@ -19,7 +19,6 @@ var (
 	tables        string
 	excludeTables string
 	schemaName    string
-	format        string
 )
 
 var rootCmd = &cobra.Command{
@@ -36,7 +35,6 @@ func init() {
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&excludeTables, "exclude-tables", "e", "", "Tables to exclude (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "", "Database schema name (optional: defaults to 'public' for PostgreSQL, auto-detected from connection string for MySQL)")
-	rootCmd.Flags().StringVarP(&format, "format", "f", "markdown", "Output format: text or markdown (default: markdown)")
 }
 
 type dbConfig struct {
@@ -203,7 +201,7 @@ func formatOutput(extractedSchema *schema.Schema) error {
 
 	// Multi-file output
 	if outputDir != "" {
-		multiFormatter := formatter.NewMultiFileFormatter(outputDir, format)
+		multiFormatter := formatter.NewMultiFileFormatter(outputDir, "markdown")
 		if err := multiFormatter.Format(extractedSchema); err != nil {
 			return fmt.Errorf("failed to format output: %w", err)
 		}
@@ -226,16 +224,8 @@ func formatOutput(extractedSchema *schema.Schema) error {
 	}
 
 	// Format and write output
-	switch format {
-	case "text":
-		textFormatter := formatter.NewTextFormatter(writer)
-		return textFormatter.Format(extractedSchema)
-	case "markdown":
-		markdownFormatter := formatter.NewMarkdownFormatter(writer)
-		return markdownFormatter.Format(extractedSchema)
-	default:
-		return fmt.Errorf("invalid format: %s (must be 'text' or 'markdown')", format)
-	}
+	markdownFormatter := formatter.NewMarkdownFormatter(writer)
+	return markdownFormatter.Format(extractedSchema)
 }
 
 func run(cmd *cobra.Command, args []string) error {

@@ -1,13 +1,13 @@
 # LLMSchema
 
-Extract database schemas into LLM-optimized documentation. Supports PostgreSQL, MySQL, and SQLite with token-efficient text or markdown output.
+Extract database schemas into LLM-optimized documentation. Supports PostgreSQL, MySQL, and SQLite with markdown output.
 
 ## Features
 
 - Multiple database support (PostgreSQL, MySQL, SQLite)
 - Compact, LLM-friendly output format
 - Complete schema extraction (tables, columns, types, relationships, indexes, constraints)
-- Multi-file output on a per-table basis for efficiency
+- Multi-file output on a per-table basis for llm context efficiency
 - CLI-friendly with stdout or file output
 
 ## Installation
@@ -38,9 +38,6 @@ llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,post
 
 # Exclude specific tables
 llmschema --db-url "postgres://user:password@localhost:5432/mydb" -e "migrations,audit_logs" -o schema.txt
-
-# Text format (More compact but less readable and also less structured for llms)
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -f text -o schema.txt
 ```
 
 ## Output Format
@@ -106,7 +103,6 @@ When working with database-related code:
 | `--tables` | `-t` | Comma-separated list of tables to extract | All tables |
 | `--exclude-tables` | `-e` | Comma-separated list of tables to exclude | - |
 | `--schema` | `-s` | Database schema name (PostgreSQL/MySQL) | `public` for PostgreSQL, auto-detected for MySQL |
-| `--format` | `-f` | Output format: `text` or `markdown` | `markdown` |
 
 ## Connection String Formats
 

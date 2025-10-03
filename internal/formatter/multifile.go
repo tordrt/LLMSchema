@@ -137,40 +137,35 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 	// Use existing formatters
 	if f.OutputFormat == formatMarkdown {
 		// Format table header
-		_, _ = fmt.Fprintf(file, "# %s\n\n", table.Name)
-
-		// Add primary key info
-		if len(table.PrimaryKey) > 0 {
-			_, _ = fmt.Fprintf(file, "**Primary Key:** `%s`\n\n", strings.Join(table.PrimaryKey, ", "))
-		}
+		_, _ = fmt.Fprintf(file, "## %s\n\n", table.Name)
 
 		// Format columns
-		_, _ = fmt.Fprintln(file, "## Columns")
+		_, _ = fmt.Fprintln(file, "### Columns")
 		_, _ = fmt.Fprintln(file)
-		_, _ = fmt.Fprintln(file, "| Column | Type | Constraints |")
-		_, _ = fmt.Fprintln(file, "|--------|------|-------------|")
 
 		for _, col := range table.Columns {
 			typeStr := col.Type
 			if len(col.EnumValues) > 0 {
-				typeStr = fmt.Sprintf("%s (%s)", col.Type, strings.Join(col.EnumValues, "\\|"))
+				typeStr = fmt.Sprintf("%s (%s)", col.Type, strings.Join(col.EnumValues, "|"))
 			}
-			constraints := formatMarkdownConstraints(col)
-			_, _ = fmt.Fprintf(file, "| %s | `%s` | %s |\n",
-				col.Name,
-				typeStr,
-				constraints)
+
+			// Build compact column description with PK marker
+			constraintStr := formatCompactConstraints(col, table.PrimaryKey)
+			if constraintStr != "" {
+				_, _ = fmt.Fprintf(file, "- **%s:** %s, %s\n", col.Name, typeStr, constraintStr)
+			} else {
+				_, _ = fmt.Fprintf(file, "- **%s:** %s\n", col.Name, typeStr)
+			}
 		}
 		_, _ = fmt.Fprintln(file)
 
 		// Relations
 		if len(table.Relations) > 0 {
-			_, _ = fmt.Fprintln(file, "## Relations")
+			_, _ = fmt.Fprintln(file, "### References")
 			_, _ = fmt.Fprintln(file)
-			_, _ = fmt.Fprintln(file, "| Target Table | Target Column | Cardinality |")
-			_, _ = fmt.Fprintln(file, "|--------------|---------------|-------------|")
 			for _, rel := range table.Relations {
-				_, _ = fmt.Fprintf(file, "| `%s` | `%s` | %s |\n",
+				_, _ = fmt.Fprintf(file, "- %s → %s.%s (%s)\n",
+					rel.SourceColumn,
 					rel.TargetTable,
 					rel.TargetColumn,
 					rel.Cardinality)
@@ -180,19 +175,18 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 
 		// Indexes
 		if len(table.Indexes) > 0 {
-			_, _ = fmt.Fprintln(file, "## Indexes")
+			_, _ = fmt.Fprintln(file, "### Idx")
 			_, _ = fmt.Fprintln(file)
-			_, _ = fmt.Fprintln(file, "| Index Name | Columns | Unique |")
-			_, _ = fmt.Fprintln(file, "|------------|---------|--------|")
 			for _, idx := range table.Indexes {
-				unique := "No"
 				if idx.IsUnique {
-					unique = "Yes"
+					_, _ = fmt.Fprintf(file, "- %s on (%s), unique\n",
+						idx.Name,
+						strings.Join(idx.Columns, ", "))
+				} else {
+					_, _ = fmt.Fprintf(file, "- %s on (%s)\n",
+						idx.Name,
+						strings.Join(idx.Columns, ", "))
 				}
-				_, _ = fmt.Fprintf(file, "| `%s` | `%s` | %s |\n",
-					idx.Name,
-					strings.Join(idx.Columns, ", "),
-					unique)
 			}
 			_, _ = fmt.Fprintln(file)
 		}
@@ -200,9 +194,9 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 		// Add incoming relationships
 		incomingRels := f.findIncomingRelations(table.Name, s)
 		if len(incomingRels) > 0 {
-			_, _ = fmt.Fprintf(file, "## Referenced By\n\n")
+			_, _ = fmt.Fprintf(file, "### Referenced by\n\n")
 			for _, rel := range incomingRels {
-				_, _ = fmt.Fprintf(file, "- `%s.%s` → `%s.%s` (%s)\n",
+				_, _ = fmt.Fprintf(file, "- %s.%s → %s.%s (%s)\n",
 					rel.SourceTable, rel.SourceColumn,
 					rel.TargetTable, rel.TargetColumn,
 					rel.Cardinality)
@@ -268,9 +262,22 @@ func (f *MultiFileFormatter) getFileExtension() string {
 	return ".txt"
 }
 
-// formatMarkdownConstraints formats column constraints for markdown output
-func formatMarkdownConstraints(col schema.Column) string {
+// formatCompactConstraints formats column constraints in a compact format for LLM optimization
+func formatCompactConstraints(col schema.Column, primaryKey []string) string {
 	var constraints []string
+
+	// Check if this column is part of the primary key
+	isPK := false
+	for _, pk := range primaryKey {
+		if pk == col.Name {
+			isPK = true
+			break
+		}
+	}
+
+	if isPK {
+		constraints = append(constraints, "PK")
+	}
 
 	if col.IsUnique {
 		constraints = append(constraints, "UNIQUE")
@@ -281,15 +288,11 @@ func formatMarkdownConstraints(col schema.Column) string {
 	}
 
 	if col.DefaultValue != nil {
-		constraints = append(constraints, fmt.Sprintf("DEFAULT `%s`", *col.DefaultValue))
+		constraints = append(constraints, fmt.Sprintf("DEFAULT %s", *col.DefaultValue))
 	}
 
 	if col.CheckConstraint != nil {
-		constraints = append(constraints, fmt.Sprintf("CHECK(`%s`)", *col.CheckConstraint))
-	}
-
-	if len(constraints) == 0 {
-		return "-"
+		constraints = append(constraints, fmt.Sprintf("CHECK(%s)", *col.CheckConstraint))
 	}
 
 	return strings.Join(constraints, ", ")

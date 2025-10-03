@@ -34,5 +34,8 @@ go.work.sum
 /.idea/LLMSchema.iml
 /.idea/modules.xml
 /.idea/vcs.xml
-/test.db
 /.idea/golinter.xml
+
+# Test output
+/test.db
+/output/

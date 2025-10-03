@@ -108,6 +108,24 @@ func (e *Extractor) extractTable(ctx context.Context, tableName string) (*schema
 	return table, nil
 }
 
+// normalizePostgresType maps verbose SQL type names to commonly-used PostgreSQL equivalents
+func normalizePostgresType(dataType, udtName string) string {
+	switch dataType {
+	case "timestamp with time zone":
+		return "timestamptz"
+	case "timestamp without time zone":
+		return "timestamp"
+	case "time with time zone":
+		return "timetz"
+	case "time without time zone":
+		return "time"
+	case "USER-DEFINED":
+		return udtName
+	default:
+		return dataType
+	}
+}
+
 // extractColumns extracts column information for a table
 func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]schema.Column, error) {
 	query := `
@@ -146,18 +164,21 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 		var col schema.Column
 		var nullable string
 		var defaultVal *string
+		var dataType string
 		var udtName string
 
-		if err := rows.Scan(&col.Name, &col.Type, &nullable, &defaultVal, &col.IsUnique, &udtName); err != nil {
+		if err := rows.Scan(&col.Name, &dataType, &nullable, &defaultVal, &col.IsUnique, &udtName); err != nil {
 			return nil, err
 		}
 
 		col.Nullable = (nullable == "YES")
 		col.DefaultValue = defaultVal
 
-		// If it's a USER-DEFINED type, remember it for later lookup
-		if col.Type == "USER-DEFINED" {
-			col.Type = udtName // Replace USER-DEFINED with actual enum type name
+		// Use SQL standard type names, but apply PostgreSQL-specific shortcuts for verbose types
+		col.Type = normalizePostgresType(dataType, udtName)
+
+		// If it's a USER-DEFINED type, remember it for later lookup of enum values
+		if dataType == "USER-DEFINED" {
 			enumTypes = append(enumTypes, udtName)
 		}
 
