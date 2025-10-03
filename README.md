@@ -17,9 +17,21 @@ Generate database schema documentation optimized for AI agents. Extracts schemas
 
 ### CLI Tool
 
+**With Go installed:**
+
 ```bash
 go install github.com/tordrt/llmschema/cmd/llmschema@latest
 ```
+
+**Quick install (macOS/Linux):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/tordrt/llmschema/main/install.sh | sh
+```
+
+**Manual install:**
+
+Download the latest binary for your platform from [releases](https://github.com/tordrt/llmschema/releases), extract it, and move to your PATH.
 
 Or build from source:
 
