@@ -49,7 +49,7 @@ else
   ARCHIVE_EXT="tar.gz"
 fi
 
-ARCHIVE_NAME="llmschema_${LATEST_VERSION}_${OS}_${ARCH}.${ARCHIVE_EXT}"
+ARCHIVE_NAME="LLMSchema_${LATEST_VERSION#v}_${OS}_${ARCH}.${ARCHIVE_EXT}"
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/$LATEST_VERSION/$ARCHIVE_NAME"
 
 echo "Downloading $ARCHIVE_NAME..."

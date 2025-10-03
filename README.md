@@ -58,6 +58,8 @@ llmschema --db-url "$DATABASE_URL" -d llm-docs/db-schema
 ```markdown
 ## Database Schema
 
+Database: PostgreSQL (or MySQL/SQLite as appropriate)
+
 Schema docs are in `llm-docs/db-schema/`:
 - `_overview.md` - lists all tables and their relationships
 - `<table_name>.md` - detailed schema for each table
