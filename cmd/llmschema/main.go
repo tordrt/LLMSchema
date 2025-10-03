@@ -23,8 +23,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "llmschema",
-	Short: "Extract database schema in LLM-friendly format",
-	Long:  `LLMSchema extracts database schemas from PostgreSQL, MySQL, or SQLite and outputs them in a compact, token-efficient format optimized for LLMs.`,
+	Short: "Generate database schema documentation optimized for AI agents",
+	Long:  `Generate database schema documentation optimized for AI agents. Extracts schemas from PostgreSQL, MySQL, and SQLite into markdown files that AI assistants can efficiently browse and which humans can easily reference.`,
 	RunE:  run,
 }
 

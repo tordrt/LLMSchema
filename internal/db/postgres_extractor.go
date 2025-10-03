@@ -7,6 +7,8 @@ import (
 	"github.com/tordrt/llmschema/internal/schema"
 )
 
+const varcharType = "varchar"
+
 // Extractor handles schema extraction from PostgreSQL
 type Extractor struct {
 	client *PostgresClient
@@ -123,7 +125,7 @@ func normalizePostgresType(dataType, udtName string, charMaxLength *int) string 
 		if charMaxLength != nil {
 			return fmt.Sprintf("varchar(%d)", *charMaxLength)
 		}
-		return "varchar"
+		return varcharType
 	case "character":
 		if charMaxLength != nil {
 			return fmt.Sprintf("char(%d)", *charMaxLength)
@@ -158,8 +160,8 @@ func normalizeUdtName(udtName string) string {
 		return "double precision"
 	case "bool":
 		return "boolean"
-	case "varchar":
-		return "varchar"
+	case varcharType:
+		return varcharType
 	default:
 		return udtName
 	}

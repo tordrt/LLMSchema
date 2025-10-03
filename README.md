@@ -15,6 +15,8 @@ Generate database schema documentation optimized for AI agents. Extracts schemas
 
 ## Installation
 
+### CLI Tool
+
 ```bash
 go install github.com/tordrt/llmschema/cmd/llmschema@latest
 ```
@@ -25,6 +27,12 @@ Or build from source:
 git clone https://github.com/tordrt/llmschema.git
 cd llmschema
 go build -o llmschema ./cmd/llmschema
+```
+
+### Go Library
+
+```bash
+go get github.com/tordrt/llmschema
 ```
 
 ## Workflow
@@ -86,6 +94,74 @@ sqlite://path/to/database.db
 | `--tables` | `-t` | Comma-separated list of tables to extract            | All tables |
 | `--exclude-tables` | `-e` | Comma-separated list of tables to exclude            | - |
 | `--schema` | `-s` | Database schema name (PostgreSQL/MySQL)              | `public` for PostgreSQL, auto-detected for MySQL |
+
+## Library Usage
+
+You can also use LLMSchema as a Go library in your projects.
+
+### Quick Start (Recommended)
+
+For most use cases, use `ExtractAndFormat` to extract and save schema in one call:
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+
+	"github.com/tordrt/llmschema"
+)
+
+func main() {
+	ctx := context.Background()
+
+	err := llmschema.ExtractAndFormat(
+		ctx,
+		"postgres://user:pass@localhost:5432/mydb",
+		&llmschema.Options{
+			ExcludeTables: []string{"migrations"},
+		},
+		&llmschema.OutputOptions{
+			OutputDir: "llm-docs/db-schema",
+		},
+	)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+```
+
+### Multi-Step Workflow
+
+For more control, extract and format separately:
+
+```go
+ctx := context.Background()
+
+// Step 1: Extract schema
+schema, err := llmschema.ExtractSchema(ctx, "postgres://user:pass@localhost:5432/mydb", &llmschema.Options{
+	Tables:        []string{"users", "posts"}, // optional: specific tables
+	ExcludeTables: []string{"migrations"},      // optional: exclude tables
+	SchemaName:    "public",                    // optional: schema name
+})
+if err != nil {
+	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	return
+}
+
+// Step 2: Format to stdout
+err = llmschema.FormatSchema(schema, &llmschema.OutputOptions{
+	Writer: os.Stdout, // optional: defaults to stdout
+})
+
+// Or save to multi-file output
+err = llmschema.FormatSchema(schema, &llmschema.OutputOptions{
+	OutputDir: "llm-docs/db-schema",
+})
+```
 
 
 ## Output Format
