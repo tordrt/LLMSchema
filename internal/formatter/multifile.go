@@ -89,7 +89,7 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Sche
 			for _, rel := range table.Relations {
 				targets = append(targets, rel.TargetTable)
 			}
-			_, _ = fmt.Fprintf(file, " (refs: %s)", strings.Join(targets, ", "))
+			_, _ = fmt.Fprintf(file, " (references: %s)", strings.Join(targets, ", "))
 		}
 		_, _ = fmt.Fprintf(file, "\n")
 	}
@@ -115,7 +115,7 @@ func (f *MultiFileFormatter) writeTextOverview(file *os.File, s *schema.Schema) 
 			for _, rel := range table.Relations {
 				targets = append(targets, rel.TargetTable)
 			}
-			_, _ = fmt.Fprintf(file, " (refs: %s)", strings.Join(targets, ","))
+			_, _ = fmt.Fprintf(file, " (references: %s)", strings.Join(targets, ","))
 		}
 		_, _ = fmt.Fprintf(file, "\n")
 	}
@@ -142,9 +142,9 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 		_, _ = fmt.Fprintf(file, "## %s\n\n", table.Name)
 
 		// Use shared formatting methods
-		mdFormatter.FormatColumns(file, table.Columns, table.PrimaryKey)
+		mdFormatter.FormatColumns(file, table.Columns, table.PrimaryKey, table.Relations)
+		mdFormatter.formatIndexes(file, table.Indexes, table.Columns)
 		mdFormatter.FormatRelations(file, table.Name, table.Relations)
-		mdFormatter.FormatIndexes(file, table.Indexes)
 
 		// Add incoming relationships
 		incomingRels := f.findIncomingRelations(table.Name, s)
@@ -152,11 +152,12 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 			_, _ = fmt.Fprintf(file, "### Referenced by\n\n")
 			for _, rel := range incomingRels {
 				cardinalityDesc := FormatCardinality(rel.Cardinality, rel.SourceTable, rel.TargetTable)
-				_, _ = fmt.Fprintf(file, "- %s.%s → %s.%s (%s)\n",
+				_, _ = fmt.Fprintf(file, "- %s.%s → %s (%s)\n",
 					rel.SourceTable, rel.SourceColumn,
-					rel.TargetTable, rel.TargetColumn,
+					rel.TargetColumn,
 					cardinalityDesc)
 			}
+			_, _ = fmt.Fprintln(file)
 		}
 	}
 
