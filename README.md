@@ -27,22 +27,6 @@ cd llmschema
 go build -o llmschema ./cmd/llmschema
 ```
 
-## Usage
-
-```bash
-# Multi-file output (recommended)
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -d llm-docs/db-schema
-
-# Single file output
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o schema.md
-
-# Specific tables only
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts" -d output
-
-# Exclude specific tables
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -e "migrations,audit_logs" -d output
-```
-
 ## Workflow
 
 **1. Generate schema documentation** (ideally automate this with your DB migrations):
@@ -62,6 +46,47 @@ When working with database code, read `_overview.md` for an overview and load sp
 ```
 
 **3. AI agents can now:** Browse the overview to understand structure, then load specific tables on-demand for efficient context usage.
+
+## Usage
+
+```bash
+# Multi-file output (recommended)
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -d llm-docs/db-schema
+
+# Single file output
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o schema.md
+
+# Specific tables only
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts" -d output
+
+# Exclude specific tables
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -e "migrations,audit_logs" -d output
+```
+
+## Connection String Formats
+
+```bash
+# PostgreSQL
+postgres://username:password@host:port/database
+
+# MySQL
+mysql://username:password@tcp(host:port)/database
+
+# SQLite
+sqlite://path/to/database.db
+```
+
+## CLI Options
+
+| Flag | Short | Description                                          | Default |
+|------|-------|------------------------------------------------------|---------|
+| `--db-url` | - | Database connection string (required)                | - |
+| `--output` | `-o` | Output file path                                     | stdout |
+| `--output-dir` | `-d` | Output directory for multi-file output (Recommended) | - |
+| `--tables` | `-t` | Comma-separated list of tables to extract            | All tables |
+| `--exclude-tables` | `-e` | Comma-separated list of tables to exclude            | - |
+| `--schema` | `-s` | Database schema name (PostgreSQL/MySQL)              | `public` for PostgreSQL, auto-detected for MySQL |
+
 
 ## Output Format
 
@@ -107,30 +132,6 @@ Each table has a corresponding file: `<table_name>.md`
 ### Referenced by
 
 - order_items.order_id → id (many order_items to one orders)
-```
-
-## CLI Options
-
-| Flag | Short | Description                                          | Default |
-|------|-------|------------------------------------------------------|---------|
-| `--db-url` | - | Database connection string (required)                | - |
-| `--output` | `-o` | Output file path                                     | stdout |
-| `--output-dir` | `-d` | Output directory for multi-file output (Recommended) | - |
-| `--tables` | `-t` | Comma-separated list of tables to extract            | All tables |
-| `--exclude-tables` | `-e` | Comma-separated list of tables to exclude            | - |
-| `--schema` | `-s` | Database schema name (PostgreSQL/MySQL)              | `public` for PostgreSQL, auto-detected for MySQL |
-
-## Connection String Formats
-
-```bash
-# PostgreSQL
-postgres://username:password@host:port/database
-
-# MySQL
-mysql://username:password@tcp(host:port)/database
-
-# SQLite
-sqlite://path/to/database.db
 ```
 
 ## Contributing
