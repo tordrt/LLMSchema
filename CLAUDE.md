@@ -16,12 +16,11 @@ go build -o llmschema ./cmd/llmschema
 # Run all tests
 make test
 
-# Run unit tests only
-go test -v ./...
+# Run unit tests
+make test-unit
 
 # Run integration tests (requires Docker)
 make test-integration
-# Or: go test -v -tags=integration ./tests/integration/...
 
 # Start test databases (Docker)
 make docker-up              # All databases

@@ -70,7 +70,8 @@ func (f *MultiFileFormatter) writeOverview(s *schema.Schema) error {
 
 func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Schema) error {
 	_, _ = fmt.Fprintf(file, "# Schema Overview\n\n")
-	_, _ = fmt.Fprintf(file, "Each table has a corresponding file: `<table_name>%s`\n\n", f.getFileExtension())
+	examplePath := filepath.Join(f.OutputDir, "<table_name>"+f.getFileExtension())
+	_, _ = fmt.Fprintf(file, "Each table has its own documentation file `%s`\n\n", examplePath)
 	_, _ = fmt.Fprintf(file, "## Tables\n\n")
 
 	// Sort tables alphabetically
@@ -99,7 +100,8 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Sche
 
 func (f *MultiFileFormatter) writeTextOverview(file *os.File, s *schema.Schema) error {
 	_, _ = fmt.Fprintf(file, "SCHEMA OVERVIEW\n")
-	_, _ = fmt.Fprintf(file, "Each table has a file: <table_name>%s\n\n", f.getFileExtension())
+	examplePath := filepath.Join(f.OutputDir, "<table_name>"+f.getFileExtension())
+	_, _ = fmt.Fprintf(file, "Each table has a file: %s\n\n", examplePath)
 
 	// Sort tables alphabetically
 	sortedTables := make([]schema.Table, len(s.Tables))
