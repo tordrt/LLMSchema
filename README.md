@@ -1,16 +1,47 @@
 # LLMSchema
 
-Generate database schema documentation optimized for AI agents. Extracts schemas from PostgreSQL, MySQL, and SQLite into markdown files that AI assistants can efficiently browse and which humans can easily reference.
+[![Go Version](https://img.shields.io/github/go-mod/go-version/tordrt/llmschema)](go.mod)
+[![Release](https://img.shields.io/github/v/release/tordrt/llmschema)](https://github.com/tordrt/llmschema/releases)
+[![License](https://img.shields.io/github/license/tordrt/llmschema)](LICENSE)
+
+Generate simple database schema documentation optimized for AI agents. Extracts schemas from PostgreSQL, MySQL, and SQLite into markdown files that AI assistants can efficiently browse and which humans can easily reference.
 
 **Primary use:** AI agent consumption (Claude Code, Cursor, etc.)
 
-**Secondary use:** Human-readable documentation
+## Table of Contents
+
+- [Why?](#why)
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Examples](#examples)
+- [Connection String Formats](#connection-string-formats)
+- [CLI Options](#cli-options)
+- [Library Usage](#library-usage)
+- [Output Format](#output-format)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Why?
+
+I wanted an easy way to provide db schema context to Claude Code.
+
+Existing database documentation tools felt like overkill for solving this. Yes, there are many schema documentation tools out there—but I wanted something **simple and concise** that AI agents could easily browse and consume.
+
+This tool isn't about generating beautiful, incredibly detailed, or dense documentation. It's about providing **just the barebones**: table structures and relationships in a format that's trivial for agents to understand. I found that the database MCPs were overly complex for what I needed.
+
+I vibecoded this over a couple days and have been using it for about a month now. My workflow:
+
+- **Big tasks:** I write detailed prompts and directly reference specific table docs that Claude needs
+- **Simple tasks:** The overview in `CLAUDE.md` gives the agent enough context to pull in relevant table docs on demand
+
+It's been working well for me, and I hope it helps others who want a straightforward way to give their AI agents schema context.
 
 ## Features
 
 - Simple and concise markdown output with structured tables
 - Multi-file output (one file per table) for efficient context referencing and browsing by agents
-- Complete schema extraction: columns, types, relationships, indexes, constraints
+- Extracts columns, types, relationships, indexes, constraints
 - Multiple database support: PostgreSQL, MySQL, SQLite.
 
 ## Installation
@@ -29,17 +60,7 @@ go install github.com/tordrt/llmschema/cmd/llmschema@latest
 curl -fsSL https://raw.githubusercontent.com/tordrt/llmschema/main/install.sh | sh
 ```
 
-**Manual install:**
-
-Download the latest binary for your platform from [releases](https://github.com/tordrt/llmschema/releases), extract it, and move to your PATH.
-
-Or build from source:
-
-```bash
-git clone https://github.com/tordrt/llmschema.git
-cd llmschema
-go build -o llmschema ./cmd/llmschema
-```
+$Or$ build from source.
 
 ### Go Library
 
@@ -47,43 +68,62 @@ go build -o llmschema ./cmd/llmschema
 go get github.com/tordrt/llmschema
 ```
 
-## Workflow
+> **Note:** This tool was built to solve a specific need in AI-assisted development. It works well for this purpose, but is best used with development databases. Don't rely on it for production-critical documentation or operations requiring high reliability.
 
-**1. Generate schema documentation** (ideally automate this with your DB migrations):
+## Quick Start
+
+**1. Generate schema documentation** (ideally automate this to run after DB migrations):
+
 ```bash
-llmschema --db-url "$DATABASE_URL" -d llm-docs/db-schema
+llmschema --db-url "$DATABASE_URL" -d docs/db-schema
 ```
 
-**2. Add instructions to your AI context file** (`CLAUDE.md`, `.cursorrules`, etc.):
+**2. Add instructions to your AI context file** (`CLAUDE.md`, `.cursorrules`, etc.)
+
+For claude code I like to just import the overview file directly in the CLAUDE.md:
+
 ```markdown
-## Database Schema
+--- CLAUDE.md ---
 
-Database: PostgreSQL (or MySQL/SQLite as appropriate)
+@docs/db-schema/_overview.md
 
-Schema docs are in `llm-docs/db-schema/`:
-- `_overview.md` - lists all tables and their relationships
-- `<table_name>.md` - detailed schema for each table
+<!-- Add whatever other database releated context you want below -->
 
-When working with database code, read `_overview.md` for an overview and load specific table files as needed.
+--- CLAUDE.md ---
 ```
 
-**3. AI agents can now:** Browse the overview to understand structure, then load specific tables on-demand for efficient context usage.
+**3. AI agents can now:** Understand the structure, then load specific tables on-demand for efficient context usage. You can also easily directly reference table doc files in your prompts
 
-## Usage
+## Examples
 
 ```bash
 # Multi-file output (recommended)
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -d llm-docs/db-schema
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -d docs/db-schema
 
 # Single file output
 llmschema --db-url "postgres://user:password@localhost:5432/mydb" -o schema.md
 
 # Specific tables only
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts" -d output
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -t "users,posts" -d docs/db-schema
 
 # Exclude specific tables
-llmschema --db-url "postgres://user:password@localhost:5432/mydb" -e "migrations,audit_logs" -d output
+llmschema --db-url "postgres://user:password@localhost:5432/mydb" -e "migrations,audit_logs" -d docs/db-schema
 ```
+
+**Integrate with migration tools to always have up to date docs:**
+
+Add a target to your Makefile that runs migrations and generates schema docs:
+
+```makefile
+# Example Makefile integration
+migrate:
+    # Replace with your migration tool (goose, migrate, etc.)
+    goose -dir migrations postgres "$(DATABASE_URL)" up
+    llmschema --db-url "$(DATABASE_URL)" -d docs/db-schema
+
+```
+
+Alternatively, integrate llmschema into git hooks (e.g., post-migration), CI/CD pipelines, or other automation workflows.
 
 ## Connection String Formats
 
@@ -100,14 +140,14 @@ sqlite://path/to/database.db
 
 ## CLI Options
 
-| Flag | Short | Description                                          | Default |
-|------|-------|------------------------------------------------------|---------|
-| `--db-url` | - | Database connection string (required)                | - |
-| `--output` | `-o` | Output file path                                     | stdout |
-| `--output-dir` | `-d` | Output directory for multi-file output (Recommended) | - |
-| `--tables` | `-t` | Comma-separated list of tables to extract            | All tables |
-| `--exclude-tables` | `-e` | Comma-separated list of tables to exclude            | - |
-| `--schema` | `-s` | Database schema name (PostgreSQL/MySQL)              | `public` for PostgreSQL, auto-detected for MySQL |
+| Flag               | Short | Description                                          | Default                                          |
+| ------------------ | ----- | ---------------------------------------------------- | ------------------------------------------------ |
+| `--db-url`         | -     | Database connection string (required)                | -                                                |
+| `--output`         | `-o`  | Output file path                                     | stdout                                           |
+| `--output-dir`     | `-d`  | Output directory for multi-file output (Recommended) | -                                                |
+| `--tables`         | `-t`  | Comma-separated list of tables to extract            | All tables                                       |
+| `--exclude-tables` | `-e`  | Comma-separated list of tables to exclude            | -                                                |
+| `--schema`         | `-s`  | Database schema name (PostgreSQL/MySQL)              | `public` for PostgreSQL, auto-detected for MySQL |
 
 ## Library Usage
 
@@ -121,30 +161,30 @@ For most use cases, use `ExtractAndFormat` to extract and save schema in one cal
 package main
 
 import (
-	"context"
-	"fmt"
-	"os"
+    "context"
+    "fmt"
+    "os"
 
-	"github.com/tordrt/llmschema"
+    "github.com/tordrt/llmschema"
 )
 
 func main() {
-	ctx := context.Background()
+    ctx := context.Background()
 
-	err := llmschema.ExtractAndFormat(
-		ctx,
-		"postgres://user:pass@localhost:5432/mydb",
-		&llmschema.Options{
-			ExcludeTables: []string{"migrations"},
-		},
-		&llmschema.OutputOptions{
-			OutputDir: "llm-docs/db-schema",
-		},
-	)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+    err := llmschema.ExtractAndFormat(
+        ctx,
+        "postgres://user:pass@localhost:5432/mydb",
+        &llmschema.Options{
+            ExcludeTables: []string{"migrations"},
+        },
+        &llmschema.OutputOptions{
+            OutputDir: "llm-docs/db-schema",
+        },
+    )
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+        os.Exit(1)
+    }
 }
 ```
 
@@ -157,30 +197,31 @@ ctx := context.Background()
 
 // Step 1: Extract schema
 schema, err := llmschema.ExtractSchema(ctx, "postgres://user:pass@localhost:5432/mydb", &llmschema.Options{
-	Tables:        []string{"users", "posts"}, // optional: specific tables
-	ExcludeTables: []string{"migrations"},      // optional: exclude tables
-	SchemaName:    "public",                    // optional: schema name
+    Tables:        []string{"users", "posts"}, // optional: specific tables
+    ExcludeTables: []string{"migrations"},      // optional: exclude tables
+    SchemaName:    "public",                    // optional: schema name
 })
 if err != nil {
-	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-	return
+    fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+    return
 }
 
 // Step 2: Format to stdout
 err = llmschema.FormatSchema(schema, &llmschema.OutputOptions{
-	Writer: os.Stdout, // optional: defaults to stdout
+    Writer: os.Stdout, // optional: defaults to stdout
 })
 
 // Or save to multi-file output
 err = llmschema.FormatSchema(schema, &llmschema.OutputOptions{
-	OutputDir: "llm-docs/db-schema",
+    OutputDir: "llm-docs/db-schema",
 })
 ```
-
 
 ## Output Format
 
 Multi-file output creates an overview file plus one file per table:
+
+> **See examples:** The output examples below show the structure and format of generated documentation.
 
 ### `_overview.md`
 
@@ -229,6 +270,7 @@ Each table has a corresponding file: `<table_name>.md`
 This is a new project I made for my own usage and likely has rough edges. Issue reports and contributions are very welcome!
 
 **Areas for improvement:**
+
 - Output format refinements
 - Support for additional databases
 - Alternative output formats
