@@ -3,6 +3,10 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/tordrt/llmschema)](go.mod)
 [![Release](https://img.shields.io/github/v/release/tordrt/llmschema)](https://github.com/tordrt/llmschema/releases)
 [![License](https://img.shields.io/github/license/tordrt/llmschema)](LICENSE)
+[![Go Reference](https://pkg.go.dev/badge/github.com/tordrt/llmschema.svg)](https://pkg.go.dev/github.com/tordrt/llmschema)
+[![Go Report Card](https://goreportcard.com/badge/github.com/tordrt/llmschema)](https://goreportcard.com/report/github.com/tordrt/llmschema)
+
+**Dead simple database schema docs for AI agents**
 
 Generate simple database schema documentation optimized for AI agents. Extracts schemas from PostgreSQL, MySQL, and SQLite into markdown files that AI assistants can efficiently browse and which humans can easily reference.
 
@@ -28,14 +32,14 @@ I wanted an easy way to provide db schema context to Claude Code.
 
 Existing database documentation tools felt like overkill for solving this. Yes, there are many schema documentation tools out there—but I wanted something **simple and concise** that AI agents could easily browse and consume.
 
-This tool isn't about generating beautiful, incredibly detailed, or dense documentation. It's about providing **just the barebones**: table structures and relationships in a format that's trivial for agents to understand. I found that the database MCPs were overly complex for what I needed.
+This tool isn't about generating beautiful, incredibly detailed, or dense documentation. It's about providing **just the barebones**: table structures, types, indexes, constraints and relationships in a format that's trivial for agents to understand. I found that the database MCPs were overly complex for what I needed.
 
-I vibecoded this over a couple days and have been using it for about a month now. My workflow:
+I vibecoded this over a couple days and have been using successfully for more than a month now. My workflow:
 
 - **Big tasks:** I write detailed prompts and directly reference specific table docs that Claude needs
 - **Simple tasks:** The overview in `CLAUDE.md` gives the agent enough context to pull in relevant table docs on demand
 
-It's been working well for me, and I hope it helps others who want a straightforward way to give their AI agents schema context.
+It's been working well for me, and I hope it helps others who want a straightforward way to give their AI agents DB schema context.
 
 ## Features
 
@@ -92,7 +96,7 @@ For claude code I like to just import the overview file directly in the CLAUDE.m
 --- CLAUDE.md ---
 ```
 
-**3. AI agents can now:** Understand the structure, then load specific tables on-demand for efficient context usage. You can also easily directly reference table doc files in your prompts
+**3. AI agents now:** Has context above your DB structure and can load specific tables on-demand for efficient context usage. You can also easily directly reference table doc files in your prompts
 
 ## Examples
 
@@ -120,7 +124,6 @@ migrate:
     # Replace with your migration tool (goose, migrate, etc.)
     goose -dir migrations postgres "$(DATABASE_URL)" up
     llmschema --db-url "$(DATABASE_URL)" -d docs/db-schema
-
 ```
 
 Alternatively, integrate llmschema into git hooks (e.g., post-migration), CI/CD pipelines, or other automation workflows.
@@ -223,12 +226,12 @@ Multi-file output creates an overview file plus one file per table:
 
 > **See examples:** The output examples below show the structure and format of generated documentation.
 
-### `_overview.md`
+### `docs/db-schema/_overview.md`
 
 ```markdown
 # Schema Overview
 
-Each table has a corresponding file: `<table_name>.md`
+Each table has a corresponding file: `docs/db-schema/<table_name>.md`
 
 ## Tables
 
@@ -238,7 +241,7 @@ Each table has a corresponding file: `<table_name>.md`
 - **users**
 ```
 
-### `orders.md`
+### `docs/db-schema/orders.md`
 
 ```markdown
 ## orders
