@@ -8,7 +8,7 @@
 
 **Dead simple database schema docs for LLM's and AI agents**
 
-Generate simple database schema documentation optimized for AI agents. Extracts schemas from PostgreSQL, MySQL, and SQLite into markdown files that AI assistants can efficiently browse and which humans can easily reference.
+Generate simple database schema documentation for LLM's and AI agents. Extracts schemas from PostgreSQL, MySQL, and SQLite into markdown files that agents can efficiently browse and which humans can easily reference.
 
 **Primary use:** AI agent consumption (Claude Code, Cursor, etc.)
 
@@ -36,8 +36,8 @@ This tool isn't about generating beautiful, incredibly detailed, or dense docume
 
 I vibecoded this over a couple days and have been using successfully for more than a month now. My workflow:
 
-- **Big tasks:** I write detailed prompts and directly reference specific table docs that Claude needs
-- **Simple tasks:** The overview in `CLAUDE.md` gives the agent enough context to pull in relevant table docs on demand
+- **Big tasks:** I write detailed prompts and directly reference relevant table docs.
+- **Simple tasks:** Importing the overview in `CLAUDE.md` gives Claude Code enough context to pull in relevant table docs on demand
 
 It's been working well for me, and I hope it helps others who want a straightforward way to give their AI agents DB schema context.
 
