@@ -6,7 +6,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/tordrt/llmschema.svg)](https://pkg.go.dev/github.com/tordrt/llmschema)
 [![Go Report Card](https://goreportcard.com/badge/github.com/tordrt/llmschema)](https://goreportcard.com/report/github.com/tordrt/llmschema)
 
-**Dead simple database schema docs for AI agents**
+**Dead simple database schema docs for LLM's and AI agents**
 
 Generate simple database schema documentation optimized for AI agents. Extracts schemas from PostgreSQL, MySQL, and SQLite into markdown files that AI assistants can efficiently browse and which humans can easily reference.
 
