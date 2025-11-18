@@ -31,189 +31,32 @@ func TestSQLiteExtraction(t *testing.T) {
 	extractor := db.NewSQLiteExtractor(client)
 
 	// Extract schema
-	schema, err := extractor.ExtractSchema(ctx, nil)
+	s, err := extractor.ExtractSchema(ctx, nil)
 	if err != nil {
 		t.Fatalf("Failed to extract schema: %v", err)
 	}
 
 	// Verify tables exist
 	expectedTables := []string{"users", "products", "orders", "order_items"}
-	if len(schema.Tables) != len(expectedTables) {
-		t.Errorf("Expected %d tables, got %d", len(expectedTables), len(schema.Tables))
-	}
-
-	tableMap := make(map[string]bool)
-	for _, table := range schema.Tables {
-		tableMap[table.Name] = true
-	}
-
-	for _, tableName := range expectedTables {
-		if !tableMap[tableName] {
-			t.Errorf("Expected table %s not found in schema", tableName)
-		}
-	}
+	verifyTablesExist(t, s, expectedTables)
 
 	// Verify users table structure
-	var usersTable *struct {
-		Name       string
-		Columns    []struct{ Name, Type string }
-		PrimaryKey []string
-	}
-
-	for _, table := range schema.Tables {
-		if table.Name == "users" {
-			usersTable = &struct {
-				Name       string
-				Columns    []struct{ Name, Type string }
-				PrimaryKey []string
-			}{
-				Name:       table.Name,
-				PrimaryKey: table.PrimaryKey,
-			}
-			for _, col := range table.Columns {
-				usersTable.Columns = append(usersTable.Columns, struct{ Name, Type string }{
-					Name: col.Name,
-					Type: col.Type,
-				})
-			}
-			break
-		}
-	}
-
-	if usersTable == nil {
+	table := findTable(s, "users")
+	if table == nil {
 		t.Fatal("Users table not found")
 	}
-
-	// Check primary key
-	if len(usersTable.PrimaryKey) != 1 || usersTable.PrimaryKey[0] != "id" {
-		t.Errorf("Expected primary key [id], got %v", usersTable.PrimaryKey)
-	}
-
-	// Check columns
+	verifyPrimaryKey(t, table, []string{"id"})
 	expectedColumns := []string{"id", "username", "email", "status", "created_at"}
-	columnMap := make(map[string]bool)
-	for _, col := range usersTable.Columns {
-		columnMap[col.Name] = true
-	}
-
-	for _, colName := range expectedColumns {
-		if !columnMap[colName] {
-			t.Errorf("Expected column %s not found in users table", colName)
-		}
-	}
+	verifyColumns(t, table, expectedColumns)
 
 	// Verify unique constraint on username
-	var usernameIsUnique bool
-	for _, table := range schema.Tables {
-		if table.Name == "users" {
-			for _, col := range table.Columns {
-				if col.Name == "username" && col.IsUnique {
-					usernameIsUnique = true
-					break
-				}
-			}
-			break
-		}
-	}
-
-	if !usernameIsUnique {
-		t.Error("Expected username column to have unique constraint")
-	}
+	verifyUniqueConstraint(t, s, "users", "username")
 
 	// Verify foreign key relationships
-	var ordersTable *struct {
-		Relations []struct {
-			TargetTable  string
-			SourceColumn string
-		}
-	}
-
-	for _, table := range schema.Tables {
-		if table.Name == "orders" {
-			ordersTable = &struct {
-				Relations []struct {
-					TargetTable  string
-					SourceColumn string
-				}
-			}{}
-			for _, rel := range table.Relations {
-				ordersTable.Relations = append(ordersTable.Relations, struct {
-					TargetTable  string
-					SourceColumn string
-				}{
-					TargetTable:  rel.TargetTable,
-					SourceColumn: rel.SourceColumn,
-				})
-			}
-			break
-		}
-	}
-
-	if ordersTable == nil {
-		t.Fatal("Orders table not found")
-	}
-
-	// Check that orders has a relation to users
-	foundUserRelation := false
-	for _, rel := range ordersTable.Relations {
-		if rel.TargetTable == "users" && rel.SourceColumn == "user_id" {
-			foundUserRelation = true
-			break
-		}
-	}
-
-	if !foundUserRelation {
-		t.Error("Expected foreign key relationship from orders.user_id to users not found")
-	}
+	verifyForeignKey(t, s, "orders", "user_id", "users")
 
 	// Verify indexes
-	var productsTable *struct {
-		Indexes []struct {
-			Name    string
-			Columns []string
-		}
-	}
-
-	for _, table := range schema.Tables {
-		if table.Name == "products" {
-			productsTable = &struct {
-				Indexes []struct {
-					Name    string
-					Columns []string
-				}
-			}{}
-			for _, idx := range table.Indexes {
-				productsTable.Indexes = append(productsTable.Indexes, struct {
-					Name    string
-					Columns []string
-				}{
-					Name:    idx.Name,
-					Columns: idx.Columns,
-				})
-			}
-			break
-		}
-	}
-
-	if productsTable == nil {
-		t.Fatal("Products table not found")
-	}
-
-	// Check for category index
-	foundCategoryIndex := false
-	for _, idx := range productsTable.Indexes {
-		if idx.Name == "idx_category" {
-			foundCategoryIndex = true
-			if len(idx.Columns) != 1 || idx.Columns[0] != "category" {
-				t.Errorf("Expected idx_category on [category], got %v", idx.Columns)
-			}
-			break
-		}
-	}
-
-	if !foundCategoryIndex {
-		t.Error("Expected index idx_category on products table not found")
-	}
+	verifyIndex(t, s, "products", "idx_category", []string{"category"})
 }
 
 func TestSQLiteSpecificTables(t *testing.T) {
