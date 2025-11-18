@@ -41,6 +41,8 @@ I vibecoded this over a couple days and have been using successfully for more th
 
 It's been working well for me, and I hope it helps others who want a straightforward way to give their AI agents DB schema context.
 
+> **Note:** This tool was built to solve a specific need in AI-assisted development. It works well for this purpose, but is best used with development databases. Don't rely on it for production-critical documentation or operations requiring high reliability.
+
 ## Features
 
 - Simple and concise markdown output with structured tables
@@ -71,8 +73,6 @@ $Or$ build from source.
 ```bash
 go get github.com/tordrt/llmschema
 ```
-
-> **Note:** This tool was built to solve a specific need in AI-assisted development. It works well for this purpose, but is best used with development databases. Don't rely on it for production-critical documentation or operations requiring high reliability.
 
 ## Quick Start
 
