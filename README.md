@@ -139,17 +139,31 @@ func main() {
         log.Fatal(err)
     }
 }
+```
 
 ## Output Format
 
-Multi-file output creates an overview file plus one file per table:
+Multi-file output creates an overview plus one Markdown file per table. For
+example, the sample e-commerce schema used in this repository produces:
+
+```text
+docs/db-schema/
+├── _overview.md
+├── order_items.md
+├── orders.md
+├── products.md
+└── users.md
+```
+
+The overview is intentionally small, so an AI agent can discover the available
+tables and load only the table files relevant to its task.
 
 ### `docs/db-schema/_overview.md`
 
 ```markdown
 # Schema Overview
 
-Each table has a corresponding file: `docs/db-schema/<table_name>.md`
+Each table has its own documentation file `docs/db-schema/<table_name>.md`
 
 ## Tables
 
@@ -159,18 +173,21 @@ Each table has a corresponding file: `docs/db-schema/<table_name>.md`
 - **users**
 ```
 
+Each table file contains its columns and, when present, indexes and both
+outgoing and incoming relationships.
+
 ### `docs/db-schema/orders.md`
 
 ```markdown
 ## orders
 
-| Column       | Type                                                                                                                 |
-|--------------|----------------------------------------------------------------------------------------------------------------------|
-| id           | PK integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass)                                                      |
-| user_id      | integer NOT NULL                                                                                                     |
-| total_amount | numeric NOT NULL                                                                                                     |
-| order_date   | timestamp DEFAULT CURRENT_TIMESTAMP                                                                                  |
-| status       | order_status (pending, processing, shipped, delivered, cancelled) DEFAULT 'pending'::order_status                    |
+| Column | Type |
+|--------|------|
+| id | PK integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass) |
+| user_id | integer NOT NULL |
+| total_amount | numeric NOT NULL |
+| order_date | timestamp DEFAULT CURRENT_TIMESTAMP |
+| status | order_status (pending, processing, shipped, delivered, cancelled) DEFAULT 'pending'::order_status |
 
 ### Index
 
@@ -185,6 +202,9 @@ Each table has a corresponding file: `docs/db-schema/<table_name>.md`
 
 - order_items.order_id → id (many order_items to one orders)
 ```
+
+Using `--output schema.md` instead writes the same table details to a single
+Markdown file headed by `# Database Schema`.
 
 ## Contributing
 
