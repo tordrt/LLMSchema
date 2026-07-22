@@ -178,6 +178,18 @@ func TestRootCommandWritesToStdoutByDefault(t *testing.T) {
 	}
 }
 
+func TestRootCommandSuggestsSchemaFlagWhenMySQLDatabaseNameIsMissing(t *testing.T) {
+	cmd := newRootCmd(func(_ context.Context, _ string, _ *llmschema.Options, _ *llmschema.OutputOptions) error {
+		return errors.New("failed to determine database name: no database name found in connection string (please specify --schema in the CLI or Options.SchemaName in the library API)")
+	})
+	cmd.SetArgs([]string{"--db-url", "mysql://user:pass@tcp(localhost:3306)/"})
+
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "please specify --schema") {
+		t.Fatalf("Execute() error = %v, want guidance to specify --schema", err)
+	}
+}
+
 func TestRootCommandPreservesOutputWhenExtractionFails(t *testing.T) {
 	outputPath := filepath.Join(t.TempDir(), "schema.md")
 	const original = "existing schema\n"

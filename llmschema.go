@@ -341,12 +341,16 @@ func extractMySQLSchema(ctx context.Context, connectionStr string, opts *Options
 	if schemaName == "" {
 		schemaName, err = db.ParseDatabaseName(connectionStr)
 		if err != nil {
-			return nil, fmt.Errorf("failed to determine database name: %w (please specify SchemaName in Options)", err)
+			return nil, mySQLSchemaNameError(err)
 		}
 	}
 
 	extractor := db.NewMySQLExtractor(client, schemaName)
 	return extractor.ExtractSchema(ctx, opts.Tables)
+}
+
+func mySQLSchemaNameError(err error) error {
+	return fmt.Errorf("failed to determine database name: %w (please specify --schema in the CLI or Options.SchemaName in the library API)", err)
 }
 
 func extractSQLiteSchema(ctx context.Context, filePath string, opts *Options) (*schema.Schema, error) {
