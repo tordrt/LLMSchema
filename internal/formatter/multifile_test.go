@@ -2,6 +2,7 @@ package formatter
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -202,5 +203,129 @@ func TestMultiFileFormatterKeepsTableFilesInsideOutputDirectory(t *testing.T) {
 		if !strings.Contains(string(overview), reference) {
 			t.Errorf("overview does not reference %s:\n%s", reference, overview)
 		}
+	}
+}
+
+func TestMultiFileFormatterRemovesOnlyStaleGeneratedFiles(t *testing.T) {
+	outputDir := t.TempDir()
+	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+	initialSchema := &schema.Schema{Tables: []schema.Table{{Name: "users"}, {Name: "posts"}}}
+
+	if err := formatter.Format(initialSchema); err != nil {
+		t.Fatalf("initial Format() failed: %v", err)
+	}
+	supplementalFile := filepath.Join(outputDir, "notes.md")
+	if err := os.WriteFile(supplementalFile, []byte("supplemental"), 0644); err != nil {
+		t.Fatalf("failed to write supplemental file: %v", err)
+	}
+
+	if err := formatter.Format(&schema.Schema{Tables: []schema.Table{{Name: "users"}}}); err != nil {
+		t.Fatalf("second Format() failed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outputDir, "posts.md")); !os.IsNotExist(err) {
+		t.Fatalf("stale generated file was not removed; stat error = %v", err)
+	}
+	if content, err := os.ReadFile(supplementalFile); err != nil || string(content) != "supplemental" {
+		t.Fatalf("supplemental file was changed: content = %q, error = %v", content, err)
+	}
+}
+
+func TestMultiFileFormatterCanPreserveStaleGeneratedFiles(t *testing.T) {
+	outputDir := t.TempDir()
+	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+	initialSchema := &schema.Schema{Tables: []schema.Table{{Name: "users"}, {Name: "posts"}}}
+
+	if err := formatter.Format(initialSchema); err != nil {
+		t.Fatalf("initial Format() failed: %v", err)
+	}
+	formatter.PreserveStaleFiles = true
+	if err := formatter.Format(&schema.Schema{Tables: []schema.Table{{Name: "users"}}}); err != nil {
+		t.Fatalf("preserving Format() failed: %v", err)
+	}
+	staleFile := filepath.Join(outputDir, "posts.md")
+	if _, err := os.Stat(staleFile); err != nil {
+		t.Fatalf("stale generated file was not preserved: %v", err)
+	}
+
+	formatter.PreserveStaleFiles = false
+	if err := formatter.Format(&schema.Schema{Tables: []schema.Table{{Name: "users"}}}); err != nil {
+		t.Fatalf("cleanup Format() failed: %v", err)
+	}
+	if _, err := os.Stat(staleFile); !os.IsNotExist(err) {
+		t.Fatalf("preserved file was not removed by later cleanup; stat error = %v", err)
+	}
+}
+
+func TestMultiFileFormatterDoesNotDeleteFilesWithoutManifest(t *testing.T) {
+	outputDir := t.TempDir()
+	legacyFile := filepath.Join(outputDir, "old_table.md")
+	if err := os.WriteFile(legacyFile, []byte("existing"), 0644); err != nil {
+		t.Fatalf("failed to write existing file: %v", err)
+	}
+
+	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+	if err := formatter.Format(&schema.Schema{Tables: []schema.Table{{Name: "users"}}}); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+	if _, err := os.Stat(legacyFile); err != nil {
+		t.Fatalf("file not recorded in a manifest was removed: %v", err)
+	}
+}
+
+func TestGeneratedFilesManifestRejectsUnsafePaths(t *testing.T) {
+	for _, unsafeName := range []string{"../outside.md", "..", "notes"} {
+		t.Run(unsafeName, func(t *testing.T) {
+			outputDir := t.TempDir()
+			manifest := filepath.Join(outputDir, generatedFilesManifest)
+			content := []byte("[" + fmt.Sprintf("%q", unsafeName) + "]\n")
+			if err := os.WriteFile(manifest, content, 0644); err != nil {
+				t.Fatalf("failed to write manifest: %v", err)
+			}
+
+			formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+			err := formatter.Format(&schema.Schema{})
+			if err == nil || !strings.Contains(err.Error(), "invalid generated filename") {
+				t.Fatalf("Format() error = %v, want invalid generated filename", err)
+			}
+		})
+	}
+}
+
+func TestWriteGeneratedFilesManifestReplacesFileAtomically(t *testing.T) {
+	outputDir := t.TempDir()
+	manifestPath := filepath.Join(outputDir, generatedFilesManifest)
+	if err := os.WriteFile(manifestPath, []byte("[\"old.md\"]\n"), 0644); err != nil {
+		t.Fatalf("failed to write initial manifest: %v", err)
+	}
+	initialInfo, err := os.Stat(manifestPath)
+	if err != nil {
+		t.Fatalf("failed to stat initial manifest: %v", err)
+	}
+
+	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+	if err := formatter.writeGeneratedFilesManifest([]string{"users.md"}); err != nil {
+		t.Fatalf("writeGeneratedFilesManifest() failed: %v", err)
+	}
+
+	updatedInfo, err := os.Stat(manifestPath)
+	if err != nil {
+		t.Fatalf("failed to stat updated manifest: %v", err)
+	}
+	if os.SameFile(initialInfo, updatedInfo) {
+		t.Fatal("manifest was updated in place instead of replaced")
+	}
+	content, err := os.ReadFile(manifestPath)
+	if err != nil {
+		t.Fatalf("failed to read updated manifest: %v", err)
+	}
+	if string(content) != "[\n  \"users.md\"\n]\n" {
+		t.Fatalf("updated manifest = %q, want complete JSON", content)
+	}
+	tempFiles, err := filepath.Glob(filepath.Join(outputDir, ".llmschema-manifest-*.tmp"))
+	if err != nil {
+		t.Fatalf("failed to check temporary files: %v", err)
+	}
+	if len(tempFiles) != 0 {
+		t.Fatalf("temporary manifest files were not cleaned up: %v", tempFiles)
 	}
 }

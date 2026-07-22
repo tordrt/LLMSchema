@@ -2,6 +2,7 @@ package formatter
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,15 +17,17 @@ import (
 const (
 	formatMarkdown            = "markdown"
 	formatText                = "text"
+	generatedFilesManifest    = ".llmschema-manifest.json"
 	maxGeneratedFileNameBytes = 120
 	truncatedNameHashHexChars = 12
 )
 
 // MultiFileFormatter writes schema to multiple files in a directory
 type MultiFileFormatter struct {
-	OutputDir        string
-	OutputFormat     string // "text" or "markdown"
-	OmitDatabaseInfo bool
+	OutputDir          string
+	OutputFormat       string // "text" or "markdown"
+	OmitDatabaseInfo   bool
+	PreserveStaleFiles bool
 }
 
 // NewMultiFileFormatter creates a new multi-file formatter
@@ -39,6 +42,11 @@ func NewMultiFileFormatter(outputDir, format string) *MultiFileFormatter {
 func (f *MultiFileFormatter) Format(s *schema.Schema) error {
 	if err := f.validateTableFileNames(s.Tables); err != nil {
 		return err
+	}
+
+	previousFiles, err := f.readGeneratedFilesManifest()
+	if err != nil {
+		return fmt.Errorf("failed to read generated files manifest: %w", err)
 	}
 
 	// Create output directory if it doesn't exist
@@ -58,7 +66,119 @@ func (f *MultiFileFormatter) Format(s *schema.Schema) error {
 		}
 	}
 
+	currentFiles := f.tableFileNames(s.Tables)
+	if f.PreserveStaleFiles {
+		currentFiles = mergeFileNames(previousFiles, currentFiles)
+	} else if err := f.removeStaleGeneratedFiles(previousFiles, currentFiles); err != nil {
+		return err
+	}
+	if err := f.writeGeneratedFilesManifest(currentFiles); err != nil {
+		return fmt.Errorf("failed to write generated files manifest: %w", err)
+	}
+
 	return nil
+}
+
+func (f *MultiFileFormatter) tableFileNames(tables []schema.Table) []string {
+	files := make([]string, 0, len(tables))
+	for _, table := range tables {
+		files = append(files, f.tableFileName(table.Name))
+	}
+	sort.Strings(files)
+	return files
+}
+
+func (f *MultiFileFormatter) readGeneratedFilesManifest() ([]string, error) {
+	content, err := os.ReadFile(filepath.Join(f.OutputDir, generatedFilesManifest))
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var files []string
+	if err := json.Unmarshal(content, &files); err != nil {
+		return nil, err
+	}
+	for _, name := range files {
+		if !validGeneratedFileName(name) {
+			return nil, fmt.Errorf("invalid generated filename %q", name)
+		}
+	}
+	return files, nil
+}
+
+func (f *MultiFileFormatter) writeGeneratedFilesManifest(files []string) error {
+	content, err := json.MarshalIndent(files, "", "  ")
+	if err != nil {
+		return err
+	}
+	content = append(content, '\n')
+
+	tempFile, err := os.CreateTemp(f.OutputDir, ".llmschema-manifest-*.tmp")
+	if err != nil {
+		return err
+	}
+	tempName := tempFile.Name()
+	defer func() { _ = os.Remove(tempName) }()
+
+	if err := tempFile.Chmod(0644); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if _, err := tempFile.Write(content); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if err := tempFile.Sync(); err != nil {
+		_ = tempFile.Close()
+		return err
+	}
+	if err := tempFile.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tempName, filepath.Join(f.OutputDir, generatedFilesManifest))
+}
+
+func (f *MultiFileFormatter) removeStaleGeneratedFiles(previousFiles, currentFiles []string) error {
+	current := make(map[string]bool, len(currentFiles))
+	for _, name := range currentFiles {
+		current[name] = true
+	}
+	for _, name := range previousFiles {
+		if current[name] {
+			continue
+		}
+		if err := os.Remove(filepath.Join(f.OutputDir, name)); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("failed to remove stale generated file %q: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func validGeneratedFileName(name string) bool {
+	validExtension := strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".txt")
+	return name != "" && name != "." && name != ".." && name != "_overview.md" && name != "_overview.txt" &&
+		filepath.Base(name) == name && len(name) <= maxGeneratedFileNameBytes && validExtension
+}
+
+func mergeFileNames(first, second []string) []string {
+	seen := make(map[string]bool, len(first)+len(second))
+	for _, name := range first {
+		seen[name] = true
+	}
+	for _, name := range second {
+		seen[name] = true
+	}
+
+	files := make([]string, 0, len(seen))
+	for name := range seen {
+		files = append(files, name)
+	}
+	sort.Strings(files)
+	return files
 }
 
 // writeOverview writes the overview file

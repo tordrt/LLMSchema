@@ -136,3 +136,13 @@ func TestParseTableList(t *testing.T) {
 		})
 	}
 }
+
+func TestPreserveStaleFilesFlagIsAvailable(t *testing.T) {
+	flag := rootCmd.Flags().Lookup("preserve-stale-files")
+	if flag == nil {
+		t.Fatal("--preserve-stale-files flag is not registered")
+	}
+	if flag.DefValue != "false" {
+		t.Fatalf("--preserve-stale-files default = %q, want false", flag.DefValue)
+	}
+}
