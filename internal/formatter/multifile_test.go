@@ -64,3 +64,143 @@ func TestMarkdownOverviewCanOmitDatabaseInfo(t *testing.T) {
 		t.Fatalf("overview contains omitted database info:\n%s", content)
 	}
 }
+
+func TestTableFileNameIsPortableAndCollisionSafe(t *testing.T) {
+	formatter := NewMultiFileFormatter("schema", formatMarkdown)
+	tests := []struct {
+		name      string
+		tableName string
+		want      string
+	}{
+		{name: "common name unchanged", tableName: "users", want: "users.md"},
+		{name: "path traversal encoded", tableName: "../outside", want: "~2e~2e~2foutside.md"},
+		{name: "path separator encoded", tableName: "billing/invoices", want: "billing~2finvoices.md"},
+		{name: "overview collision encoded", tableName: "_overview", want: "~5foverview.md"},
+		{name: "uppercase encoded", tableName: "Users", want: "~55sers.md"},
+		{name: "windows device name encoded", tableName: "con", want: "~63on.md"},
+		{name: "unicode encoded", tableName: "café", want: "caf~c3~a9.md"},
+		{name: "empty name encoded", tableName: "", want: "~empty.md"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := formatter.tableFileName(tt.tableName); got != tt.want {
+				t.Fatalf("tableFileName(%q) = %q, want %q", tt.tableName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTableFileNameBoundsLongEncodedNames(t *testing.T) {
+	formatter := NewMultiFileFormatter("schema", formatMarkdown)
+	firstTable := strings.Repeat("A", 100)
+	secondTable := strings.Repeat("A", 99) + "B"
+
+	firstFile := formatter.tableFileName(firstTable)
+	secondFile := formatter.tableFileName(secondTable)
+	if len(firstFile) != maxGeneratedFileNameBytes {
+		t.Fatalf("long filename has %d bytes, want %d: %q", len(firstFile), maxGeneratedFileNameBytes, firstFile)
+	}
+	if firstFile == secondFile {
+		t.Fatalf("distinct long table names mapped to the same filename %q", firstFile)
+	}
+	if !strings.HasSuffix(firstFile, ".md") {
+		t.Fatalf("long filename %q does not retain its extension", firstFile)
+	}
+	stem := strings.TrimSuffix(firstFile, ".md")
+	hashSeparator := strings.LastIndex(stem, "~")
+	if hashSeparator == -1 || len(stem[hashSeparator+1:]) != truncatedNameHashHexChars {
+		t.Fatalf("long filename %q does not have a %d-character hash suffix", firstFile, truncatedNameHashHexChars)
+	}
+
+	outputDir := t.TempDir()
+	formatter.OutputDir = outputDir
+	if err := formatter.Format(&schema.Schema{Tables: []schema.Table{{Name: firstTable}, {Name: secondTable}}}); err != nil {
+		t.Fatalf("Format() failed for long table names: %v", err)
+	}
+	for _, name := range []string{firstFile, secondFile} {
+		if _, err := os.Stat(filepath.Join(outputDir, name)); err != nil {
+			t.Errorf("expected output file %q: %v", name, err)
+		}
+	}
+}
+
+func TestMultiFileFormatterRejectsFilenameConflictsBeforeWriting(t *testing.T) {
+	tests := []struct {
+		name      string
+		tables    []schema.Table
+		wantError string
+	}{
+		{
+			name: "truncated name collides with encoded name",
+			tables: []schema.Table{
+				{Name: strings.Repeat("a", 118) + "32"},
+				{Name: strings.Repeat("a", 104) + "@c1b7b7ae2f"},
+			},
+			wantError: "table filename collision",
+		},
+		{
+			name:      "duplicate table",
+			tables:    []schema.Table{{Name: "users"}, {Name: "users"}},
+			wantError: `duplicate table "users"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			outputDir := filepath.Join(t.TempDir(), "schema")
+			formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+
+			err := formatter.Format(&schema.Schema{Tables: tt.tables})
+			if err == nil || !strings.Contains(err.Error(), tt.wantError) {
+				t.Fatalf("Format() error = %v, want an error containing %q", err, tt.wantError)
+			}
+			if _, statErr := os.Stat(outputDir); !os.IsNotExist(statErr) {
+				t.Fatalf("output directory was created before validation; stat error = %v", statErr)
+			}
+		})
+	}
+}
+
+func TestMultiFileFormatterKeepsTableFilesInsideOutputDirectory(t *testing.T) {
+	rootDir := t.TempDir()
+	outputDir := filepath.Join(rootDir, "schema")
+	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+	s := &schema.Schema{Tables: []schema.Table{
+		{Name: "users"},
+		{Name: "Users"},
+		{Name: "../outside"},
+		{Name: "_overview"},
+	}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	wantFiles := []string{
+		"_overview.md",
+		"users.md",
+		"~55sers.md",
+		"~2e~2e~2foutside.md",
+		"~5foverview.md",
+	}
+	for _, name := range wantFiles {
+		if _, err := os.Stat(filepath.Join(outputDir, name)); err != nil {
+			t.Errorf("expected output file %q: %v", name, err)
+		}
+	}
+
+	if _, err := os.Stat(filepath.Join(rootDir, "outside.md")); !os.IsNotExist(err) {
+		t.Fatalf("table file escaped output directory; stat error = %v", err)
+	}
+
+	overview, err := os.ReadFile(filepath.Join(outputDir, "_overview.md"))
+	if err != nil {
+		t.Fatalf("failed to read overview: %v", err)
+	}
+	for _, reference := range []string{"`users.md`", "`~55sers.md`", "`~2e~2e~2foutside.md`", "`~5foverview.md`"} {
+		if !strings.Contains(string(overview), reference) {
+			t.Errorf("overview does not reference %s:\n%s", reference, overview)
+		}
+	}
+}

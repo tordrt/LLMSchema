@@ -1,6 +1,7 @@
 package formatter
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +14,10 @@ import (
 )
 
 const (
-	formatMarkdown = "markdown"
-	formatText     = "text"
+	formatMarkdown            = "markdown"
+	formatText                = "text"
+	maxGeneratedFileNameBytes = 120
+	truncatedNameHashHexChars = 12
 )
 
 // MultiFileFormatter writes schema to multiple files in a directory
@@ -34,6 +37,10 @@ func NewMultiFileFormatter(outputDir, format string) *MultiFileFormatter {
 
 // Format writes the schema to multiple files
 func (f *MultiFileFormatter) Format(s *schema.Schema) error {
+	if err := f.validateTableFileNames(s.Tables); err != nil {
+		return err
+	}
+
 	// Create output directory if it doesn't exist
 	if err := os.MkdirAll(f.OutputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
@@ -90,8 +97,7 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file io.Writer, s *schema.Sch
 			return err
 		}
 	}
-	examplePath := filepath.Join(f.OutputDir, "<table_name>"+f.getFileExtension())
-	if _, err := fmt.Fprintf(file, "Each table has its own documentation file `%s`\n\n", examplePath); err != nil {
+	if _, err := fmt.Fprint(file, "Each table has its own documentation file listed below.\n\n"); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintf(file, "## Tables\n\n"); err != nil {
@@ -106,7 +112,7 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file io.Writer, s *schema.Sch
 	})
 
 	for _, table := range sortedTables {
-		if _, err := fmt.Fprintf(file, "- **%s**", table.Name); err != nil {
+		if _, err := fmt.Fprintf(file, "- **%s** (file: `%s`)", table.Name, f.tableFileName(table.Name)); err != nil {
 			return err
 		}
 
@@ -132,8 +138,7 @@ func (f *MultiFileFormatter) writeTextOverview(file io.Writer, s *schema.Schema)
 	if _, err := fmt.Fprintf(file, "SCHEMA OVERVIEW\n"); err != nil {
 		return err
 	}
-	examplePath := filepath.Join(f.OutputDir, "<table_name>"+f.getFileExtension())
-	if _, err := fmt.Fprintf(file, "Each table has a file: %s\n\n", examplePath); err != nil {
+	if _, err := fmt.Fprint(file, "Each table has its own documentation file listed below.\n\n"); err != nil {
 		return err
 	}
 
@@ -145,7 +150,7 @@ func (f *MultiFileFormatter) writeTextOverview(file io.Writer, s *schema.Schema)
 	})
 
 	for _, table := range sortedTables {
-		if _, err := fmt.Fprintf(file, "%s", table.Name); err != nil {
+		if _, err := fmt.Fprintf(file, "%s (file: %s)", table.Name, f.tableFileName(table.Name)); err != nil {
 			return err
 		}
 		if len(table.Relations) > 0 {
@@ -167,8 +172,7 @@ func (f *MultiFileFormatter) writeTextOverview(file io.Writer, s *schema.Schema)
 
 // writeTableFile writes a single table to its own file
 func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schema) (err error) {
-	ext := f.getFileExtension()
-	filename := filepath.Join(f.OutputDir, table.Name+ext)
+	filename := filepath.Join(f.OutputDir, f.tableFileName(table.Name))
 
 	file, err := os.Create(filename)
 	if err != nil {
@@ -257,4 +261,76 @@ func (f *MultiFileFormatter) getFileExtension() string {
 		return ".md"
 	}
 	return ".txt"
+}
+
+// tableFileName returns a portable filename that cannot escape OutputDir.
+// Common lowercase SQL identifiers remain readable, while all other bytes are
+// encoded as ~ followed by two lowercase hexadecimal digits. Encoding uppercase
+// bytes also prevents collisions on case-insensitive filesystems.
+func (f *MultiFileFormatter) tableFileName(tableName string) string {
+	stem := encodeTableFileStem(tableName)
+	if isReservedTableFileStem(stem) {
+		// The encoding is injective because a literal '~' is itself encoded.
+		stem = fmt.Sprintf("~%02x%s", stem[0], stem[1:])
+	}
+
+	ext := f.getFileExtension()
+	maxStemBytes := maxGeneratedFileNameBytes - len(ext)
+	if len(stem) > maxStemBytes {
+		digest := sha256.Sum256([]byte(tableName))
+		hexDigest := fmt.Sprintf("%x", digest)
+		suffix := "~" + hexDigest[:truncatedNameHashHexChars]
+		stem = stem[:maxStemBytes-len(suffix)] + suffix
+	}
+	return stem + ext
+}
+
+func (f *MultiFileFormatter) validateTableFileNames(tables []schema.Table) error {
+	seen := make(map[string]string, len(tables))
+	for _, table := range tables {
+		filename := f.tableFileName(table.Name)
+		previousTable, exists := seen[filename]
+		if !exists {
+			seen[filename] = table.Name
+			continue
+		}
+		if previousTable == table.Name {
+			return fmt.Errorf("duplicate table %q would write %q more than once", table.Name, filename)
+		}
+		return fmt.Errorf("table filename collision: %q and %q both map to %q", previousTable, table.Name, filename)
+	}
+	return nil
+}
+
+func encodeTableFileStem(tableName string) string {
+	if tableName == "" {
+		return "~empty"
+	}
+
+	var encoded strings.Builder
+	for i := 0; i < len(tableName); i++ {
+		b := tableName[i]
+		if (b >= 'a' && b <= 'z') || (b >= '0' && b <= '9') || b == '_' || b == '-' {
+			encoded.WriteByte(b)
+			continue
+		}
+		_, _ = fmt.Fprintf(&encoded, "~%02x", b)
+	}
+	return encoded.String()
+}
+
+func isReservedTableFileStem(stem string) bool {
+	if stem == "_overview" {
+		return true
+	}
+
+	// Windows reserves these names even when they have a file extension.
+	switch stem {
+	case "con", "prn", "aux", "nul",
+		"com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+		"lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9":
+		return true
+	default:
+		return false
+	}
 }
