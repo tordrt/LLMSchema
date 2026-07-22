@@ -1,97 +1,18 @@
 package main
 
 import (
+	"context"
+	"errors"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/spf13/pflag"
-	"github.com/tordrt/llmschema/internal/schema"
+	"github.com/tordrt/llmschema"
 )
 
-func TestFilterExcludedTables(t *testing.T) {
-	tests := []struct {
-		name        string
-		schema      *schema.Schema
-		excludeList []string
-		wantTables  []string
-	}{
-		{
-			name: "exclude single table",
-			schema: &schema.Schema{
-				Tables: []schema.Table{
-					{Name: "users"},
-					{Name: "posts"},
-					{Name: "comments"},
-				},
-			},
-			excludeList: []string{"posts"},
-			wantTables:  []string{"users", "comments"},
-		},
-		{
-			name: "exclude multiple tables",
-			schema: &schema.Schema{
-				Tables: []schema.Table{
-					{Name: "users"},
-					{Name: "posts"},
-					{Name: "comments"},
-					{Name: "likes"},
-				},
-			},
-			excludeList: []string{"posts", "likes"},
-			wantTables:  []string{"users", "comments"},
-		},
-		{
-			name: "exclude no tables",
-			schema: &schema.Schema{
-				Tables: []schema.Table{
-					{Name: "users"},
-					{Name: "posts"},
-				},
-			},
-			excludeList: []string{},
-			wantTables:  []string{"users", "posts"},
-		},
-		{
-			name: "exclude non-existent table",
-			schema: &schema.Schema{
-				Tables: []schema.Table{
-					{Name: "users"},
-					{Name: "posts"},
-				},
-			},
-			excludeList: []string{"products"},
-			wantTables:  []string{"users", "posts"},
-		},
-		{
-			name: "exclude all tables",
-			schema: &schema.Schema{
-				Tables: []schema.Table{
-					{Name: "users"},
-					{Name: "posts"},
-				},
-			},
-			excludeList: []string{"users", "posts"},
-			wantTables:  []string{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			filterExcludedTables(tt.schema, tt.excludeList)
-
-			if len(tt.schema.Tables) != len(tt.wantTables) {
-				t.Errorf("filterExcludedTables() resulted in %d tables, want %d", len(tt.schema.Tables), len(tt.wantTables))
-				return
-			}
-
-			for i, table := range tt.schema.Tables {
-				if table.Name != tt.wantTables[i] {
-					t.Errorf("filterExcludedTables() table[%d] = %s, want %s", i, table.Name, tt.wantTables[i])
-				}
-			}
-		})
-	}
-}
+const testDatabaseURL = "sqlite://database.db"
 
 func TestParseTableList(t *testing.T) {
 	tests := []struct {
@@ -136,8 +57,7 @@ func TestParseTableList(t *testing.T) {
 			gotTables := parseTableList(tt.tablesStr)
 
 			if len(gotTables) != len(tt.wantTables) {
-				t.Errorf("parseTableList() returned %d tables, want %d", len(gotTables), len(tt.wantTables))
-				return
+				t.Fatalf("parseTableList() returned %d tables, want %d", len(gotTables), len(tt.wantTables))
 			}
 
 			for i, table := range gotTables {
@@ -173,10 +93,13 @@ func TestRootCommandValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			resetRootCommandFlags(t)
-			rootCmd.SetArgs(tt.args)
+			cmd := newRootCmd(func(context.Context, string, *llmschema.Options, *llmschema.OutputOptions) error {
+				t.Fatal("ExtractAndFormat called for invalid arguments")
+				return nil
+			})
+			cmd.SetArgs(tt.args)
 
-			err := rootCmd.Execute()
+			err := cmd.Execute()
 			if err == nil || !strings.Contains(err.Error(), tt.wantErrText) {
 				t.Fatalf("Execute() error = %v, want error containing %q", err, tt.wantErrText)
 			}
@@ -184,49 +107,130 @@ func TestRootCommandValidation(t *testing.T) {
 	}
 }
 
-func TestRootCommandAcceptsValidArguments(t *testing.T) {
-	resetRootCommandFlags(t)
-	if err := rootCmd.Flags().Set("db-url", "sqlite://database.db"); err != nil {
-		t.Fatalf("failed to set --db-url: %v", err)
-	}
-	if err := rootCmd.Flags().Set("output", "schema.md"); err != nil {
-		t.Fatalf("failed to set --output: %v", err)
-	}
+func TestRootCommandPassesContextAndOptionsToLibrary(t *testing.T) {
+	type contextKey string
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), contextKey("test"), "command context"))
+	cancel()
 
-	if err := rootCmd.Args(rootCmd, nil); err != nil {
-		t.Fatalf("argument validation failed: %v", err)
-	}
-	if err := rootCmd.ValidateRequiredFlags(); err != nil {
-		t.Fatalf("required flag validation failed: %v", err)
-	}
-	if err := rootCmd.ValidateFlagGroups(); err != nil {
-		t.Fatalf("flag group validation failed: %v", err)
-	}
-}
-
-func resetRootCommandFlags(t *testing.T) {
-	t.Helper()
-	rootCmd.Flags().VisitAll(func(flag *pflag.Flag) {
-		if err := flag.Value.Set(flag.DefValue); err != nil {
-			t.Fatalf("failed to reset --%s: %v", flag.Name, err)
+	var called bool
+	cmd := newRootCmd(func(gotCtx context.Context, databaseURL string, opts *llmschema.Options, outOpts *llmschema.OutputOptions) error {
+		called = true
+		if got := gotCtx.Value(contextKey("test")); got != "command context" {
+			t.Errorf("context value = %v, want command context", got)
 		}
-		flag.Changed = false
+		if !errors.Is(gotCtx.Err(), context.Canceled) {
+			t.Errorf("context error = %v, want context canceled", gotCtx.Err())
+		}
+		if databaseURL != testDatabaseURL {
+			t.Errorf("database URL = %q, want %s", databaseURL, testDatabaseURL)
+		}
+		assertStringsEqual(t, "tables", opts.Tables, []string{"users", "posts"})
+		assertStringsEqual(t, "excluded tables", opts.ExcludeTables, []string{"migrations"})
+		if opts.SchemaName != "main" {
+			t.Errorf("schema name = %q, want main", opts.SchemaName)
+		}
+		if outOpts.OutputDir != "docs/schema" {
+			t.Errorf("output directory = %q, want docs/schema", outOpts.OutputDir)
+		}
+		if outOpts.Writer != nil {
+			t.Errorf("writer = %v, want nil for multi-file output", outOpts.Writer)
+		}
+		if !outOpts.OmitDatabaseInfo {
+			t.Error("OmitDatabaseInfo = false, want true")
+		}
+		if !outOpts.PreserveStaleFiles {
+			t.Error("PreserveStaleFiles = false, want true")
+		}
+		return nil
 	})
-	t.Cleanup(func() {
-		rootCmd.SetArgs(nil)
-		rootCmd.Flags().VisitAll(func(flag *pflag.Flag) {
-			_ = flag.Value.Set(flag.DefValue)
-			flag.Changed = false
-		})
+	cmd.SetArgs([]string{
+		"--db-url", testDatabaseURL,
+		"--tables", "users, posts",
+		"--exclude-tables", "migrations",
+		"--schema", "main",
+		"--output-dir", "docs/schema",
+		"--no-database-info",
+		"--preserve-stale-files",
 	})
+
+	if err := cmd.ExecuteContext(ctx); err != nil {
+		t.Fatalf("ExecuteContext() failed: %v", err)
+	}
+	if !called {
+		t.Fatal("ExtractAndFormat was not called")
+	}
 }
 
-func TestPreserveStaleFilesFlagIsAvailable(t *testing.T) {
-	flag := rootCmd.Flags().Lookup("preserve-stale-files")
-	if flag == nil {
-		t.Fatal("--preserve-stale-files flag is not registered")
+func TestRootCommandWritesToStdoutByDefault(t *testing.T) {
+	var gotWriter io.Writer
+	cmd := newRootCmd(func(_ context.Context, _ string, _ *llmschema.Options, outOpts *llmschema.OutputOptions) error {
+		gotWriter = outOpts.Writer
+		return nil
+	})
+	cmd.SetOut(io.Discard)
+	cmd.SetArgs([]string{"--db-url", testDatabaseURL})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() failed: %v", err)
 	}
-	if flag.DefValue != "false" {
-		t.Fatalf("--preserve-stale-files default = %q, want false", flag.DefValue)
+	if gotWriter != cmd.OutOrStdout() {
+		t.Errorf("writer = %v, want command stdout", gotWriter)
+	}
+}
+
+func TestRootCommandPreservesOutputWhenExtractionFails(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "schema.md")
+	const original = "existing schema\n"
+	if err := os.WriteFile(outputPath, []byte(original), 0o644); err != nil {
+		t.Fatalf("failed to create existing output: %v", err)
+	}
+
+	extractionErr := errors.New("extraction failed")
+	cmd := newRootCmd(func(_ context.Context, _ string, _ *llmschema.Options, _ *llmschema.OutputOptions) error {
+		return extractionErr
+	})
+	cmd.SetArgs([]string{"--db-url", testDatabaseURL, "--output", outputPath})
+
+	if err := cmd.Execute(); !errors.Is(err, extractionErr) {
+		t.Fatalf("Execute() error = %v, want %v", err, extractionErr)
+	}
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("failed to read existing output: %v", err)
+	}
+	if string(content) != original {
+		t.Fatalf("output content = %q, want %q", content, original)
+	}
+}
+
+func TestRootCommandCreatesOutputWhenFormattingStarts(t *testing.T) {
+	outputPath := filepath.Join(t.TempDir(), "schema.md")
+	cmd := newRootCmd(func(_ context.Context, _ string, _ *llmschema.Options, outOpts *llmschema.OutputOptions) error {
+		_, err := io.WriteString(outOpts.Writer, "new schema\n")
+		return err
+	})
+	cmd.SetArgs([]string{"--db-url", testDatabaseURL, "--output", outputPath})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() failed: %v", err)
+	}
+	content, err := os.ReadFile(outputPath)
+	if err != nil {
+		t.Fatalf("failed to read output: %v", err)
+	}
+	if string(content) != "new schema\n" {
+		t.Fatalf("output content = %q, want %q", content, "new schema\n")
+	}
+}
+
+func assertStringsEqual(t *testing.T, name string, got, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("%s = %v, want %v", name, got, want)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Errorf("%s[%d] = %q, want %q", name, i, got[i], want[i])
+		}
 	}
 }
