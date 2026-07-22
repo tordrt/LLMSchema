@@ -17,8 +17,9 @@ const (
 
 // MultiFileFormatter writes schema to multiple files in a directory
 type MultiFileFormatter struct {
-	OutputDir    string
-	OutputFormat string // "text" or "markdown"
+	OutputDir        string
+	OutputFormat     string // "text" or "markdown"
+	OmitDatabaseInfo bool
 }
 
 // NewMultiFileFormatter creates a new multi-file formatter
@@ -70,6 +71,13 @@ func (f *MultiFileFormatter) writeOverview(s *schema.Schema) error {
 
 func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Schema) error {
 	_, _ = fmt.Fprintf(file, "# Schema Overview\n\n")
+	if !f.OmitDatabaseInfo && s.DatabaseType != "" {
+		_, _ = fmt.Fprintf(file, "**Database:** %s", s.DatabaseType)
+		if s.DatabaseVersion != "" {
+			_, _ = fmt.Fprintf(file, " %s", s.DatabaseVersion)
+		}
+		_, _ = fmt.Fprint(file, "\n\n")
+	}
 	examplePath := filepath.Join(f.OutputDir, "<table_name>"+f.getFileExtension())
 	_, _ = fmt.Fprintf(file, "Each table has its own documentation file `%s`\n\n", examplePath)
 	_, _ = fmt.Fprintf(file, "## Tables\n\n")

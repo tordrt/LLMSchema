@@ -109,6 +109,10 @@ type OutputOptions struct {
 	// The directory will be created if it doesn't exist.
 	// Takes precedence over Writer if both are set.
 	OutputDir string
+
+	// OmitDatabaseInfo excludes the database type and version from _overview.md.
+	// Database information is included by default for multi-file output.
+	OmitDatabaseInfo bool
 }
 
 // ExtractAndFormat extracts a database schema and formats it as markdown in one call.
@@ -266,6 +270,7 @@ func FormatSchema(s *schema.Schema, opts *OutputOptions) error {
 	// Multi-file output
 	if opts.OutputDir != "" {
 		f := formatter.NewMultiFileFormatter(opts.OutputDir, "markdown")
+		f.OmitDatabaseInfo = opts.OmitDatabaseInfo
 		return f.Format(s)
 	}
 

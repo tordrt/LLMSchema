@@ -13,12 +13,13 @@ import (
 )
 
 var (
-	dbURL         string
-	outputFile    string
-	outputDir     string
-	tables        string
-	excludeTables string
-	schemaName    string
+	dbURL            string
+	outputFile       string
+	outputDir        string
+	tables           string
+	excludeTables    string
+	schemaName       string
+	omitDatabaseInfo bool
 )
 
 var rootCmd = &cobra.Command{
@@ -35,6 +36,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&excludeTables, "exclude-tables", "e", "", "Tables to exclude (comma-separated, optional)")
 	rootCmd.Flags().StringVarP(&schemaName, "schema", "s", "", "Database schema name (optional: defaults to 'public' for PostgreSQL, auto-detected from connection string for MySQL)")
+	rootCmd.Flags().BoolVar(&omitDatabaseInfo, "no-database-info", false, "Exclude database type and version from the overview file")
 }
 
 type dbConfig struct {
@@ -202,6 +204,7 @@ func formatOutput(extractedSchema *schema.Schema) error {
 	// Multi-file output
 	if outputDir != "" {
 		multiFormatter := formatter.NewMultiFileFormatter(outputDir, "markdown")
+		multiFormatter.OmitDatabaseInfo = omitDatabaseInfo
 		if err := multiFormatter.Format(extractedSchema); err != nil {
 			return fmt.Errorf("failed to format output: %w", err)
 		}

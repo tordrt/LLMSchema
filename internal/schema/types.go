@@ -2,7 +2,9 @@ package schema
 
 // Schema represents a complete database schema
 type Schema struct {
-	Tables []Table
+	DatabaseType    string
+	DatabaseVersion string
+	Tables          []Table
 }
 
 // Table represents a database table

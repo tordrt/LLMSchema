@@ -25,6 +25,10 @@ func NewSQLiteExtractor(client *SQLiteClient) *SQLiteExtractor {
 // If tables is empty, extracts all tables in the database
 func (e *SQLiteExtractor) ExtractSchema(ctx context.Context, tables []string) (*schema.Schema, error) {
 	var extractedTables []schema.Table
+	var databaseVersion string
+	if err := e.client.GetDB().QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&databaseVersion); err != nil {
+		return nil, fmt.Errorf("failed to get database version: %w", err)
+	}
 
 	tableNames, err := e.getTableNames(ctx, tables)
 	if err != nil {
@@ -39,7 +43,11 @@ func (e *SQLiteExtractor) ExtractSchema(ctx context.Context, tables []string) (*
 		extractedTables = append(extractedTables, *table)
 	}
 
-	return &schema.Schema{Tables: extractedTables}, nil
+	return &schema.Schema{
+		DatabaseType:    "SQLite",
+		DatabaseVersion: databaseVersion,
+		Tables:          extractedTables,
+	}, nil
 }
 
 // getTableNames returns the list of tables to extract

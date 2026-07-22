@@ -27,6 +27,10 @@ func NewMySQLExtractor(client *MySQLClient, schemaName string) *MySQLExtractor {
 // If tables is empty, extracts all tables in the schema
 func (e *MySQLExtractor) ExtractSchema(ctx context.Context, tables []string) (*schema.Schema, error) {
 	var extractedTables []schema.Table
+	var databaseVersion string
+	if err := e.client.GetDB().QueryRowContext(ctx, "SELECT VERSION()").Scan(&databaseVersion); err != nil {
+		return nil, fmt.Errorf("failed to get database version: %w", err)
+	}
 
 	tableNames, err := e.getTableNames(ctx, tables)
 	if err != nil {
@@ -41,7 +45,11 @@ func (e *MySQLExtractor) ExtractSchema(ctx context.Context, tables []string) (*s
 		extractedTables = append(extractedTables, *table)
 	}
 
-	return &schema.Schema{Tables: extractedTables}, nil
+	return &schema.Schema{
+		DatabaseType:    "MySQL",
+		DatabaseVersion: databaseVersion,
+		Tables:          extractedTables,
+	}, nil
 }
 
 // getTableNames returns the list of tables to extract

@@ -80,6 +80,11 @@ llmschema --db-url "$DB_URL" -d docs/db-schema -e "migrations,audit_logs"
 llmschema --db-url "$DB_URL" -o schema.md
 ```
 
+**Omit Database Details From the Overview**
+```bash
+llmschema --db-url "$DB_URL" -d docs/db-schema --no-database-info
+```
+
 **Automated CI/Migration Integration**
 Add to your `Makefile` or migration script to keep docs up-to-date:
 ```makefile
@@ -98,6 +103,7 @@ migrate:
 | `--tables` | `-t` | Comma-separated list of tables to extract | All tables |
 | `--exclude-tables` | `-e` | Comma-separated list of tables to exclude | - |
 | `--schema` | `-s` | Database schema name (PostgreSQL/MySQL) | `public` (PG) / Auto (MySQL) |
+| `--no-database-info` | | Exclude database type and version from `_overview.md` | `false` |
 
 ## AI Context Integration
 
@@ -162,6 +168,8 @@ tables and load only the table files relevant to its task.
 
 ```markdown
 # Schema Overview
+
+**Database:** PostgreSQL 17.5
 
 Each table has its own documentation file `docs/db-schema/<table_name>.md`
 
