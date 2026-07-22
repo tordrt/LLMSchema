@@ -118,9 +118,7 @@ func (e *SQLiteExtractor) extractTable(ctx context.Context, tableName string) (*
 
 // extractColumns extracts column information for a table
 func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) ([]schema.Column, error) {
-	query := fmt.Sprintf("PRAGMA table_info(%s)", tableName)
-
-	rows, err := e.client.GetDB().QueryContext(ctx, query)
+	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_table_info(?)", tableName)
 	if err != nil {
 		return nil, err
 	}
@@ -195,8 +193,7 @@ func (e *SQLiteExtractor) isColumnUnique(ctx context.Context, tableName, columnN
 		}
 	}
 
-	query := fmt.Sprintf("PRAGMA index_list(%s)", tableName)
-	rows, err := e.client.GetDB().QueryContext(ctx, query)
+	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_index_list(?)", tableName)
 	if err != nil {
 		return false, err
 	}
@@ -213,8 +210,7 @@ func (e *SQLiteExtractor) isColumnUnique(ctx context.Context, tableName, columnN
 
 		if unique == 1 {
 			// Check if this unique index is for our column
-			indexQuery := fmt.Sprintf("PRAGMA index_info(%s)", name)
-			indexRows, err := e.client.GetDB().QueryContext(ctx, indexQuery)
+			indexRows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_index_info(?)", name)
 			if err != nil {
 				_ = indexRows.Close()
 				continue
@@ -248,9 +244,7 @@ func (e *SQLiteExtractor) isColumnUnique(ctx context.Context, tableName, columnN
 
 // extractPrimaryKey extracts primary key columns
 func (e *SQLiteExtractor) extractPrimaryKey(ctx context.Context, tableName string) ([]string, error) {
-	query := fmt.Sprintf("PRAGMA table_info(%s)", tableName)
-
-	rows, err := e.client.GetDB().QueryContext(ctx, query)
+	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_table_info(?)", tableName)
 	if err != nil {
 		return nil, err
 	}
@@ -278,9 +272,7 @@ func (e *SQLiteExtractor) extractPrimaryKey(ctx context.Context, tableName strin
 
 // extractRelations extracts foreign key relationships
 func (e *SQLiteExtractor) extractRelations(ctx context.Context, tableName string) ([]schema.Relation, error) {
-	query := fmt.Sprintf("PRAGMA foreign_key_list(%s)", tableName)
-
-	rows, err := e.client.GetDB().QueryContext(ctx, query)
+	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_foreign_key_list(?)", tableName)
 	if err != nil {
 		return nil, err
 	}
@@ -311,9 +303,7 @@ func (e *SQLiteExtractor) extractRelations(ctx context.Context, tableName string
 
 // extractIndexes extracts index information
 func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) ([]schema.Index, error) {
-	query := fmt.Sprintf("PRAGMA index_list(%s)", tableName)
-
-	rows, err := e.client.GetDB().QueryContext(ctx, query)
+	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_index_list(?)", tableName)
 	if err != nil {
 		return nil, err
 	}
@@ -336,8 +326,7 @@ func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) 
 		}
 
 		// Get index columns
-		indexQuery := fmt.Sprintf("PRAGMA index_info(%s)", name)
-		indexRows, err := e.client.GetDB().QueryContext(ctx, indexQuery)
+		indexRows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_index_info(?)", name)
 		if err != nil {
 			return nil, err
 		}

@@ -6,8 +6,10 @@ package integration
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/tordrt/llmschema"
 	"github.com/tordrt/llmschema/internal/db"
 )
 
@@ -96,5 +98,54 @@ func TestSQLiteSpecificTables(t *testing.T) {
 
 	if tableMap["orders"] || tableMap["order_items"] {
 		t.Error("Should not include orders or order_items tables")
+	}
+}
+
+func TestSQLiteQuotedIdentifiersThroughPublicAPI(t *testing.T) {
+	const (
+		tableName = `order details"'archive`
+		indexName = `parent id"'index`
+	)
+
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "quoted-identifiers.db")
+	client, err := db.NewSQLiteClient(ctx, dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create SQLite database: %v", err)
+	}
+
+	statements := []string{
+		`CREATE TABLE "parent table" ("id" INTEGER PRIMARY KEY)`,
+		`CREATE TABLE "order details""'archive" (
+			"id" INTEGER PRIMARY KEY,
+			"email address" TEXT UNIQUE,
+			"parent id" INTEGER REFERENCES "parent table"("id")
+		)`,
+		`CREATE INDEX "parent id""'index" ON "order details""'archive"("parent id")`,
+	}
+	for _, statement := range statements {
+		if _, err := client.GetDB().ExecContext(ctx, statement); err != nil {
+			_ = client.Close()
+			t.Fatalf("Failed to create SQLite test schema: %v", err)
+		}
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("Failed to close SQLite test database: %v", err)
+	}
+
+	for _, opts := range []*llmschema.Options{nil, {Tables: []string{tableName}}} {
+		s, err := llmschema.ExtractSchema(ctx, "sqlite://"+dbPath, opts)
+		if err != nil {
+			t.Fatalf("ExtractSchema(%v) failed: %v", opts, err)
+		}
+
+		table := findTable(s, tableName)
+		if table == nil {
+			t.Fatalf("ExtractSchema(%v) did not return %q", opts, tableName)
+		}
+		verifyPrimaryKey(t, table, []string{"id"})
+		verifyUniqueConstraint(t, s, tableName, "email address")
+		verifyForeignKey(t, s, tableName, "parent id", "parent table")
+		verifyIndex(t, s, tableName, indexName, []string{"parent id"})
 	}
 }
