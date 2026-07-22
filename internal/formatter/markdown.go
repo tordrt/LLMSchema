@@ -20,8 +20,12 @@ func NewMarkdownFormatter(w io.Writer) *MarkdownFormatter {
 
 // Format writes the schema in markdown format
 func (f *MarkdownFormatter) Format(s *schema.Schema) error {
-	_, _ = fmt.Fprintln(f.writer, "# Database Schema")
-	_, _ = fmt.Fprintln(f.writer)
+	if _, err := fmt.Fprintln(f.writer, "# Database Schema"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(f.writer); err != nil {
+		return err
+	}
 
 	for _, table := range s.Tables {
 		if err := f.formatTable(table); err != nil {
@@ -38,17 +42,25 @@ func (f *MarkdownFormatter) FormatTable(table schema.Table) error {
 
 func (f *MarkdownFormatter) formatTable(table schema.Table) error {
 	// Table header
-	_, _ = fmt.Fprintf(f.writer, "## %s\n\n", table.Name)
+	if _, err := fmt.Fprintf(f.writer, "## %s\n\n", table.Name); err != nil {
+		return err
+	}
 
-	f.FormatColumns(f.writer, table.Columns, table.PrimaryKey, table.Relations)
-	f.formatIndexes(f.writer, table.Indexes, table.Columns)
-	f.FormatRelations(f.writer, table.Name, table.Relations)
+	if err := f.FormatColumns(f.writer, table.Columns, table.PrimaryKey, table.Relations); err != nil {
+		return err
+	}
+	if err := f.formatIndexes(f.writer, table.Indexes, table.Columns); err != nil {
+		return err
+	}
+	if err := f.FormatRelations(f.writer, table.Name, table.Relations); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // FormatColumns writes column information as a markdown table
-func (f *MarkdownFormatter) FormatColumns(w io.Writer, columns []schema.Column, primaryKey []string, relations []schema.Relation) {
+func (f *MarkdownFormatter) FormatColumns(w io.Writer, columns []schema.Column, primaryKey []string, relations []schema.Relation) error {
 	// Check if any column has CHECK constraints
 	hasConstraints := false
 	for _, col := range columns {
@@ -60,11 +72,19 @@ func (f *MarkdownFormatter) FormatColumns(w io.Writer, columns []schema.Column, 
 
 	// Build header
 	if hasConstraints {
-		_, _ = fmt.Fprintln(w, "| Column | Type | Constraints |")
-		_, _ = fmt.Fprintln(w, "|--------|------|-------------|")
+		if _, err := fmt.Fprintln(w, "| Column | Type | Constraints |"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(w, "|--------|------|-------------|"); err != nil {
+			return err
+		}
 	} else {
-		_, _ = fmt.Fprintln(w, "| Column | Type |")
-		_, _ = fmt.Fprintln(w, "|--------|------|")
+		if _, err := fmt.Fprintln(w, "| Column | Type |"); err != nil {
+			return err
+		}
+		if _, err := fmt.Fprintln(w, "|--------|------|"); err != nil {
+			return err
+		}
 	}
 
 	for _, col := range columns {
@@ -73,12 +93,17 @@ func (f *MarkdownFormatter) FormatColumns(w io.Writer, columns []schema.Column, 
 
 		if hasConstraints {
 			constraints := FormatTableConstraints(col, primaryKey)
-			_, _ = fmt.Fprintf(w, "| %s | %s | %s |\n", col.Name, typeStr, constraints)
+			if _, err := fmt.Fprintf(w, "| %s | %s | %s |\n", col.Name, typeStr, constraints); err != nil {
+				return err
+			}
 		} else {
-			_, _ = fmt.Fprintf(w, "| %s | %s |\n", col.Name, typeStr)
+			if _, err := fmt.Fprintf(w, "| %s | %s |\n", col.Name, typeStr); err != nil {
+				return err
+			}
 		}
 	}
-	_, _ = fmt.Fprintln(w)
+	_, err := fmt.Fprintln(w)
+	return err
 }
 
 // buildTypeString builds SQL-like type string with PK prefix, nullability, and default
@@ -124,33 +149,40 @@ func buildTypeString(col schema.Column, primaryKey []string) string {
 }
 
 // FormatRelations writes relationship information
-func (f *MarkdownFormatter) FormatRelations(w io.Writer, tableName string, relations []schema.Relation) {
+func (f *MarkdownFormatter) FormatRelations(w io.Writer, tableName string, relations []schema.Relation) error {
 	if len(relations) == 0 {
-		return
+		return nil
 	}
 
-	_, _ = fmt.Fprintln(w, "### References")
-	_, _ = fmt.Fprintln(w)
+	if _, err := fmt.Fprintln(w, "### References"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
 	for _, rel := range relations {
 		cardinalityDesc := FormatCardinality(rel.Cardinality, tableName, rel.TargetTable)
-		_, _ = fmt.Fprintf(w, "- %s → %s.%s (%s)\n",
+		if _, err := fmt.Fprintf(w, "- %s → %s.%s (%s)\n",
 			rel.SourceColumn,
 			rel.TargetTable,
 			rel.TargetColumn,
-			cardinalityDesc)
+			cardinalityDesc); err != nil {
+			return err
+		}
 	}
-	_, _ = fmt.Fprintln(w)
+	_, err := fmt.Fprintln(w)
+	return err
 }
 
 // FormatIndexes writes index information
-func (f *MarkdownFormatter) FormatIndexes(w io.Writer, indexes []schema.Index) {
-	f.formatIndexes(w, indexes, nil)
+func (f *MarkdownFormatter) FormatIndexes(w io.Writer, indexes []schema.Index) error {
+	return f.formatIndexes(w, indexes, nil)
 }
 
 // formatIndexes writes index information, optionally filtering out single-column unique indexes
-func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, columns []schema.Column) {
+func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, columns []schema.Column) error {
 	if len(indexes) == 0 {
-		return
+		return nil
 	}
 
 	// Filter out single-column unique indexes if the column is already marked as UNIQUE
@@ -173,23 +205,32 @@ func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, c
 	}
 
 	if len(filteredIndexes) == 0 {
-		return
+		return nil
 	}
 
-	_, _ = fmt.Fprintln(w, "### Index")
-	_, _ = fmt.Fprintln(w)
+	if _, err := fmt.Fprintln(w, "### Index"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
 	for _, idx := range filteredIndexes {
 		if idx.IsUnique {
-			_, _ = fmt.Fprintf(w, "- %s on (%s), unique\n",
+			if _, err := fmt.Fprintf(w, "- %s on (%s), unique\n",
 				idx.Name,
-				strings.Join(idx.Columns, ", "))
+				strings.Join(idx.Columns, ", ")); err != nil {
+				return err
+			}
 		} else {
-			_, _ = fmt.Fprintf(w, "- %s on (%s)\n",
+			if _, err := fmt.Fprintf(w, "- %s on (%s)\n",
 				idx.Name,
-				strings.Join(idx.Columns, ", "))
+				strings.Join(idx.Columns, ", ")); err != nil {
+				return err
+			}
 		}
 	}
-	_, _ = fmt.Fprintln(w)
+	_, err := fmt.Fprintln(w)
+	return err
 }
 
 // FormatTableConstraints formats constraints for table output (only CHECK constraints now)

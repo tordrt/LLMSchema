@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -195,7 +196,7 @@ func extractPostgresSchema(ctx context.Context, connectionStr string, tableList 
 	return extractedSchema, nil
 }
 
-func formatOutput(extractedSchema *schema.Schema) error {
+func formatOutput(extractedSchema *schema.Schema) (err error) {
 	// Validate flag combinations
 	if outputDir != "" && outputFile != "" {
 		return fmt.Errorf("cannot use both --output-dir and --output flags")
@@ -219,9 +220,7 @@ func formatOutput(extractedSchema *schema.Schema) error {
 			return fmt.Errorf("failed to create output file: %w", err)
 		}
 		defer func() {
-			if err := f.Close(); err != nil {
-				fmt.Fprintf(os.Stderr, "warning: failed to close output file: %v\n", err)
-			}
+			err = errors.Join(err, f.Close())
 		}()
 		writer = f
 	}

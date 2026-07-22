@@ -1,6 +1,7 @@
 package formatter
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,18 @@ import (
 
 	"github.com/tordrt/llmschema/internal/schema"
 )
+
+func TestOverviewFormattersPropagateWriteErrors(t *testing.T) {
+	formatter := NewMultiFileFormatter("schema", formatMarkdown)
+	s := &schema.Schema{Tables: []schema.Table{{Name: "users"}}}
+
+	if err := formatter.writeMarkdownOverview(failingWriter{}, s); !errors.Is(err, errWriteFailed) {
+		t.Fatalf("writeMarkdownOverview() error = %v, want %v", err, errWriteFailed)
+	}
+	if err := formatter.writeTextOverview(failingWriter{}, s); !errors.Is(err, errWriteFailed) {
+		t.Fatalf("writeTextOverview() error = %v, want %v", err, errWriteFailed)
+	}
+}
 
 func TestMarkdownOverviewIncludesDatabaseInfoByDefault(t *testing.T) {
 	outputDir := t.TempDir()

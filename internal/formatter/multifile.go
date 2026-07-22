@@ -1,7 +1,9 @@
 package formatter
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -53,7 +55,7 @@ func (f *MultiFileFormatter) Format(s *schema.Schema) error {
 }
 
 // writeOverview writes the overview file
-func (f *MultiFileFormatter) writeOverview(s *schema.Schema) error {
+func (f *MultiFileFormatter) writeOverview(s *schema.Schema) (err error) {
 	ext := f.getFileExtension()
 	filename := filepath.Join(f.OutputDir, "_overview"+ext)
 
@@ -61,7 +63,9 @@ func (f *MultiFileFormatter) writeOverview(s *schema.Schema) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
 
 	if f.OutputFormat == formatMarkdown {
 		return f.writeMarkdownOverview(file, s)
@@ -69,18 +73,30 @@ func (f *MultiFileFormatter) writeOverview(s *schema.Schema) error {
 	return f.writeTextOverview(file, s)
 }
 
-func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Schema) error {
-	_, _ = fmt.Fprintf(file, "# Schema Overview\n\n")
+func (f *MultiFileFormatter) writeMarkdownOverview(file io.Writer, s *schema.Schema) error {
+	if _, err := fmt.Fprintf(file, "# Schema Overview\n\n"); err != nil {
+		return err
+	}
 	if !f.OmitDatabaseInfo && s.DatabaseType != "" {
-		_, _ = fmt.Fprintf(file, "**Database:** %s", s.DatabaseType)
-		if s.DatabaseVersion != "" {
-			_, _ = fmt.Fprintf(file, " %s", s.DatabaseVersion)
+		if _, err := fmt.Fprintf(file, "**Database:** %s", s.DatabaseType); err != nil {
+			return err
 		}
-		_, _ = fmt.Fprint(file, "\n\n")
+		if s.DatabaseVersion != "" {
+			if _, err := fmt.Fprintf(file, " %s", s.DatabaseVersion); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprint(file, "\n\n"); err != nil {
+			return err
+		}
 	}
 	examplePath := filepath.Join(f.OutputDir, "<table_name>"+f.getFileExtension())
-	_, _ = fmt.Fprintf(file, "Each table has its own documentation file `%s`\n\n", examplePath)
-	_, _ = fmt.Fprintf(file, "## Tables\n\n")
+	if _, err := fmt.Fprintf(file, "Each table has its own documentation file `%s`\n\n", examplePath); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(file, "## Tables\n\n"); err != nil {
+		return err
+	}
 
 	// Sort tables alphabetically
 	sortedTables := make([]schema.Table, len(s.Tables))
@@ -90,7 +106,9 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Sche
 	})
 
 	for _, table := range sortedTables {
-		_, _ = fmt.Fprintf(file, "- **%s**", table.Name)
+		if _, err := fmt.Fprintf(file, "- **%s**", table.Name); err != nil {
+			return err
+		}
 
 		// Show outgoing relationships
 		if len(table.Relations) > 0 {
@@ -98,18 +116,26 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file *os.File, s *schema.Sche
 			for _, rel := range table.Relations {
 				targets = append(targets, rel.TargetTable)
 			}
-			_, _ = fmt.Fprintf(file, " (references: %s)", strings.Join(targets, ", "))
+			if _, err := fmt.Fprintf(file, " (references: %s)", strings.Join(targets, ", ")); err != nil {
+				return err
+			}
 		}
-		_, _ = fmt.Fprintf(file, "\n")
+		if _, err := fmt.Fprintf(file, "\n"); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (f *MultiFileFormatter) writeTextOverview(file *os.File, s *schema.Schema) error {
-	_, _ = fmt.Fprintf(file, "SCHEMA OVERVIEW\n")
+func (f *MultiFileFormatter) writeTextOverview(file io.Writer, s *schema.Schema) error {
+	if _, err := fmt.Fprintf(file, "SCHEMA OVERVIEW\n"); err != nil {
+		return err
+	}
 	examplePath := filepath.Join(f.OutputDir, "<table_name>"+f.getFileExtension())
-	_, _ = fmt.Fprintf(file, "Each table has a file: %s\n\n", examplePath)
+	if _, err := fmt.Fprintf(file, "Each table has a file: %s\n\n", examplePath); err != nil {
+		return err
+	}
 
 	// Sort tables alphabetically
 	sortedTables := make([]schema.Table, len(s.Tables))
@@ -119,22 +145,28 @@ func (f *MultiFileFormatter) writeTextOverview(file *os.File, s *schema.Schema) 
 	})
 
 	for _, table := range sortedTables {
-		_, _ = fmt.Fprintf(file, "%s", table.Name)
+		if _, err := fmt.Fprintf(file, "%s", table.Name); err != nil {
+			return err
+		}
 		if len(table.Relations) > 0 {
 			targets := []string{}
 			for _, rel := range table.Relations {
 				targets = append(targets, rel.TargetTable)
 			}
-			_, _ = fmt.Fprintf(file, " (references: %s)", strings.Join(targets, ","))
+			if _, err := fmt.Fprintf(file, " (references: %s)", strings.Join(targets, ",")); err != nil {
+				return err
+			}
 		}
-		_, _ = fmt.Fprintf(file, "\n")
+		if _, err := fmt.Fprintf(file, "\n"); err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
 // writeTableFile writes a single table to its own file
-func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schema) error {
+func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schema) (err error) {
 	ext := f.getFileExtension()
 	filename := filepath.Join(f.OutputDir, table.Name+ext)
 
@@ -142,32 +174,48 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 	if err != nil {
 		return err
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
 
 	if f.OutputFormat == formatMarkdown {
 		// Create a markdown formatter to reuse formatting logic
 		mdFormatter := NewMarkdownFormatter(file)
 
 		// Format table header
-		_, _ = fmt.Fprintf(file, "## %s\n\n", table.Name)
+		if _, err := fmt.Fprintf(file, "## %s\n\n", table.Name); err != nil {
+			return err
+		}
 
 		// Use shared formatting methods
-		mdFormatter.FormatColumns(file, table.Columns, table.PrimaryKey, table.Relations)
-		mdFormatter.formatIndexes(file, table.Indexes, table.Columns)
-		mdFormatter.FormatRelations(file, table.Name, table.Relations)
+		if err := mdFormatter.FormatColumns(file, table.Columns, table.PrimaryKey, table.Relations); err != nil {
+			return err
+		}
+		if err := mdFormatter.formatIndexes(file, table.Indexes, table.Columns); err != nil {
+			return err
+		}
+		if err := mdFormatter.FormatRelations(file, table.Name, table.Relations); err != nil {
+			return err
+		}
 
 		// Add incoming relationships
 		incomingRels := f.findIncomingRelations(table.Name, s)
 		if len(incomingRels) > 0 {
-			_, _ = fmt.Fprintf(file, "### Referenced by\n\n")
+			if _, err := fmt.Fprintf(file, "### Referenced by\n\n"); err != nil {
+				return err
+			}
 			for _, rel := range incomingRels {
 				cardinalityDesc := FormatCardinality(rel.Cardinality, rel.SourceTable, rel.TargetTable)
-				_, _ = fmt.Fprintf(file, "- %s.%s → %s (%s)\n",
+				if _, err := fmt.Fprintf(file, "- %s.%s → %s (%s)\n",
 					rel.SourceTable, rel.SourceColumn,
 					rel.TargetColumn,
-					cardinalityDesc)
+					cardinalityDesc); err != nil {
+					return err
+				}
 			}
-			_, _ = fmt.Fprintln(file)
+			if _, err := fmt.Fprintln(file); err != nil {
+				return err
+			}
 		}
 	}
 
