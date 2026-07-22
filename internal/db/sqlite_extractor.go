@@ -26,9 +26,9 @@ func NewSQLiteExtractor(client *SQLiteClient) *SQLiteExtractor {
 func (e *SQLiteExtractor) ExtractSchema(ctx context.Context, tables []string) (*schema.Schema, error) {
 	var extractedTables []schema.Table
 	var databaseVersion string
-	if err := e.client.GetDB().QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&databaseVersion); err != nil {
-		return nil, fmt.Errorf("failed to get database version: %w", err)
-	}
+	// Version metadata is optional: compatible drivers may not support this
+	// query even when schema extraction itself works.
+	_ = e.client.GetDB().QueryRowContext(ctx, "SELECT sqlite_version()").Scan(&databaseVersion)
 
 	tableNames, err := e.getTableNames(ctx, tables)
 	if err != nil {

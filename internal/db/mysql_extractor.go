@@ -28,9 +28,9 @@ func NewMySQLExtractor(client *MySQLClient, schemaName string) *MySQLExtractor {
 func (e *MySQLExtractor) ExtractSchema(ctx context.Context, tables []string) (*schema.Schema, error) {
 	var extractedTables []schema.Table
 	var databaseVersion string
-	if err := e.client.GetDB().QueryRowContext(ctx, "SELECT VERSION()").Scan(&databaseVersion); err != nil {
-		return nil, fmt.Errorf("failed to get database version: %w", err)
-	}
+	// Version metadata is optional: compatible servers and proxies may not
+	// support this query even when schema extraction itself works.
+	_ = e.client.GetDB().QueryRowContext(ctx, "SELECT VERSION()").Scan(&databaseVersion)
 
 	tableNames, err := e.getTableNames(ctx, tables)
 	if err != nil {
