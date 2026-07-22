@@ -66,6 +66,50 @@ func TestMarkdownOverviewCanOmitDatabaseInfo(t *testing.T) {
 	}
 }
 
+func TestOverviewQualifiesExternalSchemaReferences(t *testing.T) {
+	formatter := NewMultiFileFormatter("schema", formatMarkdown)
+	s := &schema.Schema{Tables: []schema.Table{
+		{Name: "users"},
+		{
+			Name: "external_profiles",
+			Relations: []schema.Relation{{
+				TargetSchema: "identity",
+				TargetTable:  "users",
+			}},
+		},
+	}}
+
+	tests := []struct {
+		name  string
+		write func(*strings.Builder, *schema.Schema) error
+	}{
+		{
+			name: "markdown",
+			write: func(output *strings.Builder, s *schema.Schema) error {
+				return formatter.writeMarkdownOverview(output, s)
+			},
+		},
+		{
+			name: "text",
+			write: func(output *strings.Builder, s *schema.Schema) error {
+				return formatter.writeTextOverview(output, s)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var output strings.Builder
+			if err := tt.write(&output, s); err != nil {
+				t.Fatalf("writing overview failed: %v", err)
+			}
+			if !strings.Contains(output.String(), "references: identity.users") {
+				t.Fatalf("overview does not qualify external reference:\n%s", output.String())
+			}
+		})
+	}
+}
+
 func TestTableFileNameIsPortableAndCollisionSafe(t *testing.T) {
 	formatter := NewMultiFileFormatter("schema", formatMarkdown)
 	tests := []struct {
@@ -327,5 +371,19 @@ func TestWriteGeneratedFilesManifestReplacesFileAtomically(t *testing.T) {
 	}
 	if len(tempFiles) != 0 {
 		t.Fatalf("temporary manifest files were not cleaned up: %v", tempFiles)
+	}
+}
+
+func TestFindIncomingRelationsExcludesExternalSchemas(t *testing.T) {
+	formatter := NewMultiFileFormatter(t.TempDir(), formatMarkdown)
+	s := &schema.Schema{Tables: []schema.Table{
+		{Name: "users"},
+		{Name: "local_profiles", Relations: []schema.Relation{{TargetTable: "users"}}},
+		{Name: "external_profiles", Relations: []schema.Relation{{TargetSchema: "identity", TargetTable: "users"}}},
+	}}
+
+	incoming := formatter.findIncomingRelations("users", s)
+	if len(incoming) != 1 || incoming[0].SourceTable != "local_profiles" {
+		t.Fatalf("incoming relations = %#v, want only local_profiles", incoming)
 	}
 }

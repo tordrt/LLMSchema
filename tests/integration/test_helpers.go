@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/tordrt/llmschema/internal/schema"
@@ -27,6 +28,89 @@ func verifyTablesExist(t *testing.T, s *schema.Schema, expectedTables []string) 
 			t.Errorf("Expected table %s not found in schema", tableName)
 		}
 	}
+}
+
+func verifyConstraintExtraction(t *testing.T, s *schema.Schema) {
+	t.Helper()
+
+	profiles := findTable(s, "profiles")
+	if profiles == nil {
+		t.Fatal("profiles table not found")
+	}
+	verifyRelation(t, profiles, []string{"user_id"}, []string{"id"}, "1:1")
+
+	orderItems := findTable(s, "order_items")
+	if orderItems == nil {
+		t.Fatal("order_items table not found")
+	}
+	for _, name := range []string{"order_id", "product_id"} {
+		for _, column := range orderItems.Columns {
+			if column.Name == name && column.IsUnique {
+				t.Errorf("composite UNIQUE member %s.%s marked individually unique", orderItems.Name, name)
+			}
+		}
+	}
+
+	composite := findTable(s, "composite_children")
+	if composite == nil {
+		t.Fatal("composite_children table not found")
+	}
+	verifyRelation(t, composite, []string{"tenant_id", "parent_id"}, []string{"tenant_id", "id"}, "N:1")
+
+	expression := findTable(s, "expression_children")
+	if expression == nil {
+		t.Fatal("expression_children table not found")
+	}
+	verifyRelation(t, expression, []string{"user_id"}, []string{"id"}, "N:1")
+	for _, column := range expression.Columns {
+		if column.Name == "user_id" && column.IsUnique {
+			t.Error("column from unique expression index marked individually unique")
+		}
+	}
+}
+
+func verifyExternalSchemaRelation(t *testing.T, s *schema.Schema, sourceTable, targetSchema, targetTable string) {
+	t.Helper()
+	table := findTable(s, sourceTable)
+	if table == nil {
+		t.Fatalf("%s table not found", sourceTable)
+	}
+	for _, relation := range table.Relations {
+		if relation.TargetSchema == targetSchema && relation.TargetTable == targetTable {
+			return
+		}
+	}
+	t.Errorf("%s relation to %s.%s not found", sourceTable, targetSchema, targetTable)
+}
+
+func verifyExpressionIndexMarked(t *testing.T, s *schema.Schema, indexName string) {
+	t.Helper()
+	table := findTable(s, "expression_children")
+	if table == nil {
+		t.Fatal("expression_children table not found")
+	}
+	for _, index := range table.Indexes {
+		if index.Name == indexName {
+			if !index.HasExpressions {
+				t.Errorf("expression index %s was not marked as incomplete", indexName)
+			}
+			return
+		}
+	}
+	t.Errorf("expression index %s not found", indexName)
+}
+
+func verifyRelation(t *testing.T, table *schema.Table, sourceColumns, targetColumns []string, cardinality string) {
+	t.Helper()
+	for _, relation := range table.Relations {
+		if slices.Equal(relation.SourceColumns, sourceColumns) && slices.Equal(relation.TargetColumns, targetColumns) {
+			if relation.Cardinality != cardinality {
+				t.Errorf("%s relationship %v cardinality = %q, want %q", table.Name, sourceColumns, relation.Cardinality, cardinality)
+			}
+			return
+		}
+	}
+	t.Errorf("%s relationship %v -> %v not found", table.Name, sourceColumns, targetColumns)
 }
 
 // verifyColumns checks that expected columns exist in a table
@@ -95,8 +179,12 @@ func verifyForeignKey(t *testing.T, s *schema.Schema, tableName, sourceColumn, t
 	}
 
 	for _, rel := range table.Relations {
-		if rel.TargetTable == targetTable && rel.SourceColumn == sourceColumn {
-			return
+		if rel.TargetTable == targetTable {
+			for _, column := range rel.SourceColumns {
+				if column == sourceColumn {
+					return
+				}
+			}
 		}
 	}
 

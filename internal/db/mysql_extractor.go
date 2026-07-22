@@ -101,19 +101,20 @@ func (e *MySQLExtractor) extractTable(ctx context.Context, tableName string) (*s
 	}
 	table.PrimaryKey = pk
 
-	// Extract relations
-	relations, err := e.extractRelations(ctx, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract relations: %w", err)
-	}
-	table.Relations = relations
-
 	// Extract indexes
 	indexes, err := e.extractIndexes(ctx, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract indexes: %w", err)
 	}
 	table.Indexes = indexes
+	markSingleColumnUnique(table.Columns, indexes)
+
+	// Extract relations after keys and indexes so cardinality can be inferred.
+	relations, err := e.extractRelations(ctx, tableName, pk, indexes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract relations: %w", err)
+	}
+	table.Relations = relations
 
 	return table, nil
 }
@@ -126,24 +127,13 @@ func (e *MySQLExtractor) extractColumns(ctx context.Context, tableName string) (
 			c.column_type,
 			c.is_nullable,
 			c.column_default,
-			CASE WHEN EXISTS (
-				SELECT 1 FROM information_schema.table_constraints tc
-				JOIN information_schema.key_column_usage kcu
-					ON tc.constraint_name = kcu.constraint_name
-					AND tc.table_schema = kcu.table_schema
-					AND tc.table_name = kcu.table_name
-				WHERE tc.table_schema = ?
-					AND tc.table_name = ?
-					AND tc.constraint_type = 'UNIQUE'
-					AND kcu.column_name = c.column_name
-			) THEN true ELSE false END as is_unique,
 			c.data_type
 		FROM information_schema.columns c
 		WHERE c.table_schema = ? AND c.table_name = ?
 		ORDER BY c.ordinal_position
 	`
 
-	rows, err := e.client.GetDB().QueryContext(ctx, query, e.schemaName, tableName, e.schemaName, tableName)
+	rows, err := e.client.GetDB().QueryContext(ctx, query, e.schemaName, tableName)
 	if err != nil {
 		return nil, err
 	}
@@ -157,16 +147,14 @@ func (e *MySQLExtractor) extractColumns(ctx context.Context, tableName string) (
 		var columnType string
 		var nullable string
 		var defaultVal sql.NullString
-		var isUnique bool
 		var dataType string
 
-		if err := rows.Scan(&col.Name, &columnType, &nullable, &defaultVal, &isUnique, &dataType); err != nil {
+		if err := rows.Scan(&col.Name, &columnType, &nullable, &defaultVal, &dataType); err != nil {
 			return nil, err
 		}
 
 		col.Type = columnType
 		col.Nullable = (nullable == "YES")
-		col.IsUnique = isUnique
 		if defaultVal.Valid {
 			col.DefaultValue = &defaultVal.String
 		}
@@ -256,17 +244,25 @@ func (e *MySQLExtractor) extractPrimaryKey(ctx context.Context, tableName string
 }
 
 // extractRelations extracts foreign key relationships
-func (e *MySQLExtractor) extractRelations(ctx context.Context, tableName string) ([]schema.Relation, error) {
+func (e *MySQLExtractor) extractRelations(ctx context.Context, tableName string, primaryKey []string, indexes []schema.Index) ([]schema.Relation, error) {
 	query := `
 		SELECT
+			kcu.constraint_name,
 			kcu.column_name,
+			kcu.referenced_table_schema,
 			kcu.referenced_table_name,
-			kcu.referenced_column_name
+			kcu.referenced_column_name,
+			rc.update_rule,
+			rc.delete_rule
 		FROM information_schema.key_column_usage kcu
+		JOIN information_schema.referential_constraints rc
+			ON rc.constraint_schema = kcu.constraint_schema
+			AND rc.constraint_name = kcu.constraint_name
+			AND rc.table_name = kcu.table_name
 		WHERE kcu.table_schema = ?
 			AND kcu.table_name = ?
 			AND kcu.referenced_table_name IS NOT NULL
-		ORDER BY kcu.ordinal_position
+		ORDER BY kcu.constraint_name, kcu.ordinal_position
 	`
 
 	rows, err := e.client.GetDB().QueryContext(ctx, query, e.schemaName, tableName)
@@ -276,16 +272,35 @@ func (e *MySQLExtractor) extractRelations(ctx context.Context, tableName string)
 	defer func() { _ = rows.Close() }()
 
 	var relations []schema.Relation
+	var current *schema.Relation
 	for rows.Next() {
-		var rel schema.Relation
-		if err := rows.Scan(&rel.SourceColumn, &rel.TargetTable, &rel.TargetColumn); err != nil {
+		var name, sourceColumn, targetSchema, targetTable, targetColumn, onUpdate, onDelete string
+		if err := rows.Scan(&name, &sourceColumn, &targetSchema, &targetTable, &targetColumn, &onUpdate, &onDelete); err != nil {
 			return nil, err
 		}
 
-		// Determine cardinality (simplified: assume N:1 for now)
-		rel.Cardinality = "N:1"
-
-		relations = append(relations, rel)
+		if current == nil || current.Name != name {
+			if current != nil {
+				finalizeRelation(current, primaryKey, indexes)
+				relations = append(relations, *current)
+			}
+			current = &schema.Relation{
+				Name:         name,
+				TargetSchema: targetSchema,
+				TargetTable:  targetTable,
+				OnUpdate:     onUpdate,
+				OnDelete:     onDelete,
+			}
+			if current.TargetSchema == e.schemaName {
+				current.TargetSchema = ""
+			}
+		}
+		current.SourceColumns = append(current.SourceColumns, sourceColumn)
+		current.TargetColumns = append(current.TargetColumns, targetColumn)
+	}
+	if current != nil {
+		finalizeRelation(current, primaryKey, indexes)
+		relations = append(relations, *current)
 	}
 
 	return relations, rows.Err()
@@ -297,7 +312,8 @@ func (e *MySQLExtractor) extractIndexes(ctx context.Context, tableName string) (
 		SELECT
 			s.index_name,
 			s.non_unique = 0 AS is_unique,
-			GROUP_CONCAT(s.column_name ORDER BY s.seq_in_index) AS column_names
+			GROUP_CONCAT(s.column_name ORDER BY s.seq_in_index) AS column_names,
+			SUM(s.column_name IS NULL) > 0 AS has_expressions
 		FROM information_schema.statistics s
 		WHERE s.table_schema = ?
 			AND s.table_name = ?
@@ -316,14 +332,18 @@ func (e *MySQLExtractor) extractIndexes(ctx context.Context, tableName string) (
 	for rows.Next() {
 		var idx schema.Index
 		var isUnique int
-		var columnNames string
+		var columnNames sql.NullString
+		var hasExpressions int
 
-		if err := rows.Scan(&idx.Name, &isUnique, &columnNames); err != nil {
+		if err := rows.Scan(&idx.Name, &isUnique, &columnNames, &hasExpressions); err != nil {
 			return nil, err
 		}
 
 		idx.IsUnique = (isUnique == 1)
-		idx.Columns = strings.Split(columnNames, ",")
+		idx.HasExpressions = hasExpressions == 1
+		if columnNames.Valid && columnNames.String != "" {
+			idx.Columns = strings.Split(columnNames.String, ",")
+		}
 
 		indexes = append(indexes, idx)
 	}

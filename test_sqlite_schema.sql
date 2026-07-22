@@ -1,9 +1,15 @@
 -- Test schema for SQLite
 
 -- Drop tables if they exist
+DROP TABLE IF EXISTS expression_children;
+DROP TABLE IF EXISTS implicit_composite_children;
+DROP TABLE IF EXISTS reverse_key_parents;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS composite_children;
+DROP TABLE IF EXISTS composite_parents;
 DROP TABLE IF EXISTS users;
 
 -- Users table with CHECK constraint for status (SQLite doesn't have ENUM)
@@ -24,6 +30,48 @@ CREATE TABLE products (
     category TEXT NOT NULL CHECK(category IN ('electronics', 'clothing', 'food', 'books')),
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE profiles (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    display_name TEXT
+);
+
+CREATE TABLE composite_parents (
+    tenant_id INTEGER NOT NULL,
+    id INTEGER NOT NULL,
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE TABLE composite_children (
+    tenant_id INTEGER NOT NULL,
+    parent_id INTEGER NOT NULL,
+    sequence_number INTEGER NOT NULL,
+    PRIMARY KEY (tenant_id, parent_id, sequence_number),
+    FOREIGN KEY (tenant_id, parent_id)
+        REFERENCES composite_parents(tenant_id, id) ON UPDATE CASCADE
+);
+
+CREATE TABLE reverse_key_parents (
+    a INTEGER NOT NULL,
+    b INTEGER NOT NULL,
+    PRIMARY KEY (b, a)
+);
+
+CREATE TABLE implicit_composite_children (
+    parent_b INTEGER NOT NULL,
+    parent_a INTEGER NOT NULL,
+    FOREIGN KEY (parent_b, parent_a) REFERENCES reverse_key_parents
+);
+
+CREATE TABLE expression_children (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER REFERENCES users(id),
+    label TEXT NOT NULL
+);
+CREATE UNIQUE INDEX expression_children_user_label
+    ON expression_children(user_id, lower(label));
+CREATE INDEX expression_children_lower_label
+    ON expression_children(lower(label));
 
 -- Create indexes for products
 CREATE INDEX idx_category ON products(category);

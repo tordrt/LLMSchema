@@ -101,19 +101,20 @@ func (e *Extractor) extractTable(ctx context.Context, tableName string) (*schema
 	}
 	table.PrimaryKey = pk
 
-	// Extract relations
-	relations, err := e.extractRelations(ctx, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract relations: %w", err)
-	}
-	table.Relations = relations
-
 	// Extract indexes
 	indexes, err := e.extractIndexes(ctx, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract indexes: %w", err)
 	}
 	table.Indexes = indexes
+	markSingleColumnUnique(table.Columns, indexes)
+
+	// Extract relations after keys and indexes so cardinality can be inferred.
+	relations, err := e.extractRelations(ctx, tableName, pk, indexes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract relations: %w", err)
+	}
+	table.Relations = relations
 
 	return table, nil
 }
@@ -183,16 +184,6 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 			c.data_type,
 			c.is_nullable,
 			c.column_default,
-			CASE WHEN EXISTS (
-				SELECT 1 FROM information_schema.table_constraints tc
-				JOIN information_schema.constraint_column_usage ccu
-					ON tc.constraint_name = ccu.constraint_name
-					AND tc.table_schema = ccu.table_schema
-				WHERE tc.table_schema = $1
-					AND tc.table_name = $2
-					AND tc.constraint_type = 'UNIQUE'
-					AND ccu.column_name = c.column_name
-			) THEN true ELSE false END as is_unique,
 			c.udt_name,
 			c.character_maximum_length
 		FROM information_schema.columns c
@@ -218,7 +209,7 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 		var udtName string
 		var charMaxLength *int
 
-		if err := rows.Scan(&col.Name, &dataType, &nullable, &defaultVal, &col.IsUnique, &udtName, &charMaxLength); err != nil {
+		if err := rows.Scan(&col.Name, &dataType, &nullable, &defaultVal, &udtName, &charMaxLength); err != nil {
 			return nil, err
 		}
 
@@ -327,23 +318,33 @@ func (e *Extractor) extractPrimaryKey(ctx context.Context, tableName string) ([]
 }
 
 // extractRelations extracts foreign key relationships
-func (e *Extractor) extractRelations(ctx context.Context, tableName string) ([]schema.Relation, error) {
+func (e *Extractor) extractRelations(ctx context.Context, tableName string, primaryKey []string, indexes []schema.Index) ([]schema.Relation, error) {
 	query := `
 		SELECT
-			kcu.column_name,
-			ccu.table_name AS foreign_table_name,
-			ccu.column_name AS foreign_column_name
-		FROM information_schema.table_constraints AS tc
-		JOIN information_schema.key_column_usage AS kcu
-			ON tc.constraint_name = kcu.constraint_name
-			AND tc.table_schema = kcu.table_schema
-		JOIN information_schema.constraint_column_usage AS ccu
-			ON ccu.constraint_name = tc.constraint_name
-			AND ccu.table_schema = tc.table_schema
-		WHERE tc.constraint_type = 'FOREIGN KEY'
-			AND tc.table_schema = $1
-			AND tc.table_name = $2
-		ORDER BY kcu.ordinal_position
+			con.conname,
+			source_attribute.attname,
+			target_namespace.nspname,
+			target_table.relname,
+			target_attribute.attname,
+			con.confupdtype::text,
+			con.confdeltype::text
+		FROM pg_constraint con
+		JOIN pg_class source_table ON source_table.oid = con.conrelid
+		JOIN pg_namespace source_namespace ON source_namespace.oid = source_table.relnamespace
+		JOIN pg_class target_table ON target_table.oid = con.confrelid
+		JOIN pg_namespace target_namespace ON target_namespace.oid = target_table.relnamespace
+		JOIN LATERAL unnest(con.conkey, con.confkey) WITH ORDINALITY
+			AS key_columns(source_attnum, target_attnum, position) ON true
+		JOIN pg_attribute source_attribute
+			ON source_attribute.attrelid = source_table.oid
+			AND source_attribute.attnum = key_columns.source_attnum
+		JOIN pg_attribute target_attribute
+			ON target_attribute.attrelid = target_table.oid
+			AND target_attribute.attnum = key_columns.target_attnum
+		WHERE con.contype = 'f'
+			AND source_namespace.nspname = $1
+			AND source_table.relname = $2
+		ORDER BY con.conname, key_columns.position
 	`
 
 	rows, err := e.client.GetConnection().Query(ctx, query, e.schema, tableName)
@@ -353,19 +354,55 @@ func (e *Extractor) extractRelations(ctx context.Context, tableName string) ([]s
 	defer rows.Close()
 
 	var relations []schema.Relation
+	var current *schema.Relation
 	for rows.Next() {
-		var rel schema.Relation
-		if err := rows.Scan(&rel.SourceColumn, &rel.TargetTable, &rel.TargetColumn); err != nil {
+		var name, sourceColumn, targetSchema, targetTable, targetColumn, updateCode, deleteCode string
+		if err := rows.Scan(&name, &sourceColumn, &targetSchema, &targetTable, &targetColumn, &updateCode, &deleteCode); err != nil {
 			return nil, err
 		}
 
-		// Determine cardinality (simplified: assume 1:N for now, would need more logic for 1:1)
-		rel.Cardinality = "N:1"
-
-		relations = append(relations, rel)
+		if current == nil || current.Name != name {
+			if current != nil {
+				finalizeRelation(current, primaryKey, indexes)
+				relations = append(relations, *current)
+			}
+			current = &schema.Relation{
+				Name:         name,
+				TargetSchema: targetSchema,
+				TargetTable:  targetTable,
+				OnUpdate:     postgresReferentialAction(updateCode),
+				OnDelete:     postgresReferentialAction(deleteCode),
+			}
+			if current.TargetSchema == e.schema {
+				current.TargetSchema = ""
+			}
+		}
+		current.SourceColumns = append(current.SourceColumns, sourceColumn)
+		current.TargetColumns = append(current.TargetColumns, targetColumn)
+	}
+	if current != nil {
+		finalizeRelation(current, primaryKey, indexes)
+		relations = append(relations, *current)
 	}
 
 	return relations, rows.Err()
+}
+
+func postgresReferentialAction(code string) string {
+	switch code {
+	case "a":
+		return "NO ACTION"
+	case "r":
+		return "RESTRICT"
+	case "c":
+		return "CASCADE"
+	case "n":
+		return "SET NULL"
+	case "d":
+		return "SET DEFAULT"
+	default:
+		return code
+	}
 }
 
 // extractIndexes extracts index information
@@ -374,17 +411,25 @@ func (e *Extractor) extractIndexes(ctx context.Context, tableName string) ([]sch
 		SELECT
 			i.relname AS index_name,
 			ix.indisunique AS is_unique,
-			array_agg(a.attname ORDER BY array_position(ix.indkey, a.attnum)) AS column_names
+			COALESCE(
+				array_agg(a.attname ORDER BY index_key.position)
+					FILTER (WHERE a.attname IS NOT NULL),
+				ARRAY[]::text[]
+			) AS column_names,
+			ix.indpred IS NOT NULL AS is_partial,
+			bool_or(index_key.attnum = 0) AS has_expressions
 		FROM pg_class t
 		JOIN pg_index ix ON t.oid = ix.indrelid
 		JOIN pg_class i ON i.oid = ix.indexrelid
-		JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = ANY(ix.indkey)
+		JOIN LATERAL unnest(ix.indkey) WITH ORDINALITY
+			AS index_key(attnum, position) ON index_key.position <= ix.indnkeyatts
+		LEFT JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = index_key.attnum
 		JOIN pg_namespace n ON n.oid = t.relnamespace
-		WHERE t.relkind = 'r'
+		WHERE t.relkind IN ('r', 'p')
 			AND n.nspname = $1
 			AND t.relname = $2
 			AND NOT ix.indisprimary
-		GROUP BY i.relname, ix.indisunique
+		GROUP BY i.relname, ix.indisunique, (ix.indpred IS NOT NULL)
 		ORDER BY i.relname
 	`
 
@@ -397,7 +442,7 @@ func (e *Extractor) extractIndexes(ctx context.Context, tableName string) ([]sch
 	var indexes []schema.Index
 	for rows.Next() {
 		var idx schema.Index
-		if err := rows.Scan(&idx.Name, &idx.IsUnique, &idx.Columns); err != nil {
+		if err := rows.Scan(&idx.Name, &idx.IsUnique, &idx.Columns, &idx.IsPartial, &idx.HasExpressions); err != nil {
 			return nil, err
 		}
 		indexes = append(indexes, idx)

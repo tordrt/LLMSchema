@@ -39,7 +39,7 @@ func TestSQLiteExtraction(t *testing.T) {
 	}
 
 	// Verify tables exist
-	expectedTables := []string{"users", "products", "orders", "order_items"}
+	expectedTables := []string{"users", "products", "orders", "order_items", "profiles", "composite_parents", "composite_children", "reverse_key_parents", "implicit_composite_children", "expression_children"}
 	verifyTablesExist(t, s, expectedTables)
 
 	// Verify users table structure
@@ -56,6 +56,10 @@ func TestSQLiteExtraction(t *testing.T) {
 
 	// Verify foreign key relationships
 	verifyForeignKey(t, s, "orders", "user_id", "users")
+	verifyConstraintExtraction(t, s)
+	verifyRelation(t, findTable(s, "implicit_composite_children"), []string{"parent_b", "parent_a"}, []string{"b", "a"}, "N:1")
+	verifyExpressionIndexMarked(t, s, "expression_children_user_label")
+	verifyExpressionIndexMarked(t, s, "expression_children_lower_label")
 
 	// Verify indexes
 	verifyIndex(t, s, "products", "idx_category", []string{"category"})

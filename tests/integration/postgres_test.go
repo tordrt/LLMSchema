@@ -37,7 +37,7 @@ func TestPostgresExtraction(t *testing.T) {
 	}
 
 	// Verify tables exist
-	expectedTables := []string{"users", "products", "orders", "order_items"}
+	expectedTables := []string{"users", "products", "orders", "order_items", "profiles", "partitioned_profiles", "composite_parents", "composite_children", "expression_children", "external_profiles"}
 	verifyTablesExist(t, s, expectedTables)
 
 	// Verify users table structure
@@ -51,6 +51,15 @@ func TestPostgresExtraction(t *testing.T) {
 
 	// Verify foreign key relationships
 	verifyForeignKey(t, s, "orders", "user_id", "users")
+	verifyConstraintExtraction(t, s)
+	verifyUniqueConstraint(t, s, "partitioned_profiles", "user_id")
+	partitionedProfiles := findTable(s, "partitioned_profiles")
+	if partitionedProfiles == nil {
+		t.Fatal("partitioned_profiles table not found")
+	}
+	verifyRelation(t, partitionedProfiles, []string{"user_id"}, []string{"id"}, "1:1")
+	verifyExternalSchemaRelation(t, s, "external_profiles", "identity", "users")
+	verifyExpressionIndexMarked(t, s, "expression_children_user_label")
 }
 
 func TestPostgresSpecificTables(t *testing.T) {

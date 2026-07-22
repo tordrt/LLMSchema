@@ -240,7 +240,7 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file io.Writer, s *schema.Sch
 		if len(table.Relations) > 0 {
 			targets := []string{}
 			for _, rel := range table.Relations {
-				targets = append(targets, rel.TargetTable)
+				targets = append(targets, formatRelationTable(rel))
 			}
 			if _, err := fmt.Fprintf(file, " (references: %s)", strings.Join(targets, ", ")); err != nil {
 				return err
@@ -276,7 +276,7 @@ func (f *MultiFileFormatter) writeTextOverview(file io.Writer, s *schema.Schema)
 		if len(table.Relations) > 0 {
 			targets := []string{}
 			for _, rel := range table.Relations {
-				targets = append(targets, rel.TargetTable)
+				targets = append(targets, formatRelationTable(rel))
 			}
 			if _, err := fmt.Fprintf(file, " (references: %s)", strings.Join(targets, ",")); err != nil {
 				return err
@@ -329,10 +329,10 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 				return err
 			}
 			for _, rel := range incomingRels {
-				cardinalityDesc := FormatCardinality(rel.Cardinality, rel.SourceTable, rel.TargetTable)
-				if _, err := fmt.Fprintf(file, "- %s.%s → %s (%s)\n",
-					rel.SourceTable, rel.SourceColumn,
-					rel.TargetColumn,
+				cardinalityDesc := FormatCardinality(rel.Relation.Cardinality, rel.SourceTable, rel.Relation.TargetTable)
+				if _, err := fmt.Fprintf(file, "- %s → %s (%s)\n",
+					formatIncomingSource(rel.SourceTable, relationSourceColumns(rel.Relation)),
+					formatSourceColumns(relationTargetColumns(rel.Relation)),
 					cardinalityDesc); err != nil {
 					return err
 				}
@@ -348,11 +348,8 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 
 // IncomingRelation represents a relationship pointing to this table
 type IncomingRelation struct {
-	SourceTable  string
-	SourceColumn string
-	TargetTable  string
-	TargetColumn string
-	Cardinality  string
+	SourceTable string
+	Relation    schema.Relation
 }
 
 // findIncomingRelations finds all foreign keys pointing to this table
@@ -361,19 +358,30 @@ func (f *MultiFileFormatter) findIncomingRelations(tableName string, s *schema.S
 
 	for _, table := range s.Tables {
 		for _, rel := range table.Relations {
-			if rel.TargetTable == tableName {
+			// Extractors normalize references to their own schema to an empty
+			// TargetSchema. A qualified target belongs to an external schema,
+			// even when it happens to share this local table's name.
+			if rel.TargetSchema == "" && rel.TargetTable == tableName {
 				incoming = append(incoming, IncomingRelation{
-					SourceTable:  table.Name,
-					SourceColumn: rel.SourceColumn,
-					TargetTable:  rel.TargetTable,
-					TargetColumn: rel.TargetColumn,
-					Cardinality:  rel.Cardinality,
+					SourceTable: table.Name,
+					Relation:    rel,
 				})
 			}
 		}
 	}
 
 	return incoming
+}
+
+func formatIncomingSource(table string, columns []string) string {
+	if len(columns) == 1 {
+		return table + "." + columns[0]
+	}
+	qualified := make([]string, len(columns))
+	for i, column := range columns {
+		qualified[i] = table + "." + column
+	}
+	return "(" + strings.Join(qualified, ", ") + ")"
 }
 
 func (f *MultiFileFormatter) getFileExtension() string {

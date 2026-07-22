@@ -5,10 +5,17 @@
 -- Then test with: ./llmschema --db-url "postgres://localhost/testdb"
 
 -- Drop tables if they exist
+DROP TABLE IF EXISTS external_profiles;
+DROP TABLE IF EXISTS partitioned_profiles;
+DROP TABLE IF EXISTS expression_children;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS composite_children;
+DROP TABLE IF EXISTS composite_parents;
 DROP TABLE IF EXISTS users;
+DROP SCHEMA IF EXISTS identity CASCADE;
 
 -- Drop enum types if they exist
 DROP TYPE IF EXISTS user_status;
@@ -36,6 +43,45 @@ CREATE TABLE products (
     stock INT DEFAULT 0,
     category product_category NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE profiles (
+    user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    display_name VARCHAR(100)
+);
+
+CREATE TABLE partitioned_profiles (
+    user_id INT UNIQUE REFERENCES users(id),
+    display_name VARCHAR(100)
+) PARTITION BY HASH (user_id);
+
+CREATE TABLE composite_parents (
+    tenant_id INT NOT NULL,
+    id INT NOT NULL,
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE TABLE composite_children (
+    tenant_id INT NOT NULL,
+    parent_id INT NOT NULL,
+    sequence INT NOT NULL,
+    PRIMARY KEY (tenant_id, parent_id, sequence),
+    FOREIGN KEY (tenant_id, parent_id)
+        REFERENCES composite_parents(tenant_id, id) ON UPDATE CASCADE
+);
+
+CREATE TABLE expression_children (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id),
+    label TEXT NOT NULL
+);
+CREATE UNIQUE INDEX expression_children_user_label
+    ON expression_children(user_id, lower(label));
+
+CREATE SCHEMA IF NOT EXISTS identity;
+CREATE TABLE identity.users (id INT PRIMARY KEY);
+CREATE TABLE external_profiles (
+    user_id INT REFERENCES identity.users(id)
 );
 
 CREATE INDEX idx_category ON products(category);

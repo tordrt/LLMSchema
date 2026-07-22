@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/tordrt/llmschema/internal/schema"
@@ -99,19 +100,20 @@ func (e *SQLiteExtractor) extractTable(ctx context.Context, tableName string) (*
 	}
 	table.PrimaryKey = pk
 
-	// Extract relations
-	relations, err := e.extractRelations(ctx, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to extract relations: %w", err)
-	}
-	table.Relations = relations
-
 	// Extract indexes
 	indexes, err := e.extractIndexes(ctx, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract indexes: %w", err)
 	}
 	table.Indexes = indexes
+	markSingleColumnUnique(table.Columns, indexes)
+
+	// Extract relations after keys and indexes so cardinality can be inferred.
+	relations, err := e.extractRelations(ctx, tableName, pk, indexes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to extract relations: %w", err)
+	}
+	table.Relations = relations
 
 	return table, nil
 }
@@ -125,8 +127,6 @@ func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) 
 	defer func() { _ = rows.Close() }()
 
 	var columns []schema.Column
-	var pkColumns []string
-
 	for rows.Next() {
 		var cid int
 		var name, colType string
@@ -147,25 +147,11 @@ func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) 
 			col.DefaultValue = &defaultValue.String
 		}
 
-		// Track primary key columns
-		if pk > 0 {
-			pkColumns = append(pkColumns, name)
-		}
-
 		columns = append(columns, col)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
-	}
-
-	// Check for unique constraints
-	for i := range columns {
-		isUnique, err := e.isColumnUnique(ctx, tableName, columns[i].Name, pkColumns)
-		if err != nil {
-			return nil, err
-		}
-		columns[i].IsUnique = isUnique
 	}
 
 	// Extract CHECK constraints
@@ -184,64 +170,6 @@ func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) 
 	return columns, nil
 }
 
-// isColumnUnique checks if a column has a unique constraint
-func (e *SQLiteExtractor) isColumnUnique(ctx context.Context, tableName, columnName string, pkColumns []string) (bool, error) {
-	// Check if column is part of primary key
-	for _, pk := range pkColumns {
-		if pk == columnName {
-			return false, nil // Primary keys are handled separately
-		}
-	}
-
-	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_index_list(?)", tableName)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	for rows.Next() {
-		var seq int
-		var name, origin string
-		var unique, partial int
-
-		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
-			return false, err
-		}
-
-		if unique == 1 {
-			// Check if this unique index is for our column
-			indexRows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_index_info(?)", name)
-			if err != nil {
-				_ = indexRows.Close()
-				continue
-			}
-
-			var indexColumns []string
-			for indexRows.Next() {
-				var seqno, cid int
-				var colName sql.NullString
-
-				if err := indexRows.Scan(&seqno, &cid, &colName); err != nil {
-					_ = indexRows.Close()
-					continue
-				}
-
-				if colName.Valid {
-					indexColumns = append(indexColumns, colName.String)
-				}
-			}
-			_ = indexRows.Close()
-
-			// If this is a single-column unique index on our column
-			if len(indexColumns) == 1 && indexColumns[0] == columnName {
-				return true, nil
-			}
-		}
-	}
-
-	return false, rows.Err()
-}
-
 // extractPrimaryKey extracts primary key columns
 func (e *SQLiteExtractor) extractPrimaryKey(ctx context.Context, tableName string) ([]string, error) {
 	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_table_info(?)", tableName)
@@ -250,7 +178,11 @@ func (e *SQLiteExtractor) extractPrimaryKey(ctx context.Context, tableName strin
 	}
 	defer func() { _ = rows.Close() }()
 
-	var pk []string
+	type primaryKeyColumn struct {
+		name  string
+		order int
+	}
+	var keyColumns []primaryKeyColumn
 
 	for rows.Next() {
 		var cid int
@@ -263,15 +195,23 @@ func (e *SQLiteExtractor) extractPrimaryKey(ctx context.Context, tableName strin
 		}
 
 		if pkOrder > 0 {
-			pk = append(pk, name)
+			keyColumns = append(keyColumns, primaryKeyColumn{name: name, order: pkOrder})
 		}
 	}
 
-	return pk, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Slice(keyColumns, func(i, j int) bool { return keyColumns[i].order < keyColumns[j].order })
+	pk := make([]string, len(keyColumns))
+	for i, column := range keyColumns {
+		pk[i] = column.name
+	}
+	return pk, nil
 }
 
 // extractRelations extracts foreign key relationships
-func (e *SQLiteExtractor) extractRelations(ctx context.Context, tableName string) ([]schema.Relation, error) {
+func (e *SQLiteExtractor) extractRelations(ctx context.Context, tableName string, primaryKey []string, indexes []schema.Index) ([]schema.Relation, error) {
 	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_foreign_key_list(?)", tableName)
 	if err != nil {
 		return nil, err
@@ -279,26 +219,59 @@ func (e *SQLiteExtractor) extractRelations(ctx context.Context, tableName string
 	defer func() { _ = rows.Close() }()
 
 	var relations []schema.Relation
+	relationByID := make(map[int]int)
 
 	for rows.Next() {
 		var id, seq int
-		var targetTable, fromCol, toCol, onUpdate, onDelete, match string
+		var targetTable, fromCol, onUpdate, onDelete, match string
+		var toCol sql.NullString
 
 		if err := rows.Scan(&id, &seq, &targetTable, &fromCol, &toCol, &onUpdate, &onDelete, &match); err != nil {
 			return nil, err
 		}
 
-		rel := schema.Relation{
-			SourceColumn: fromCol,
-			TargetTable:  targetTable,
-			TargetColumn: toCol,
-			Cardinality:  "N:1", // Simplified assumption
+		index, ok := relationByID[id]
+		if !ok {
+			index = len(relations)
+			relationByID[id] = index
+			relations = append(relations, schema.Relation{
+				TargetTable: targetTable,
+				OnUpdate:    onUpdate,
+				OnDelete:    onDelete,
+			})
 		}
-
-		relations = append(relations, rel)
+		relations[index].SourceColumns = append(relations[index].SourceColumns, fromCol)
+		relations[index].TargetColumns = append(relations[index].TargetColumns, toCol.String)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	for i := range relations {
+		if hasEmptyColumn(relations[i].TargetColumns) {
+			targetPrimaryKey, err := e.extractPrimaryKey(ctx, relations[i].TargetTable)
+			if err != nil {
+				return nil, err
+			}
+			if len(targetPrimaryKey) == len(relations[i].TargetColumns) {
+				relations[i].TargetColumns = targetPrimaryKey
+			}
+		}
+		finalizeRelation(&relations[i], primaryKey, indexes)
 	}
 
-	return relations, rows.Err()
+	return relations, nil
+}
+
+func hasEmptyColumn(columns []string) bool {
+	for _, column := range columns {
+		if column == "" {
+			return true
+		}
+	}
+	return false
 }
 
 // extractIndexes extracts index information
@@ -307,9 +280,12 @@ func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) 
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
-
-	var indexes []schema.Index
+	type indexMetadata struct {
+		name      string
+		isUnique  bool
+		isPartial bool
+	}
+	var metadata []indexMetadata
 
 	for rows.Next() {
 		var seq int
@@ -320,18 +296,35 @@ func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) 
 			return nil, err
 		}
 
-		// Skip auto-generated primary key indexes
-		if strings.HasPrefix(name, "sqlite_autoindex") {
+		// Primary keys are extracted separately. Keep auto-generated unique
+		// indexes because they carry UNIQUE constraint semantics.
+		if origin == "pk" {
 			continue
 		}
+		metadata = append(metadata, indexMetadata{
+			name:      name,
+			isUnique:  unique == 1,
+			isPartial: partial == 1,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 
+	var indexes []schema.Index
+	for _, item := range metadata {
 		// Get index columns
-		indexRows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_index_info(?)", name)
+		indexRows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_index_info(?)", item.name)
 		if err != nil {
 			return nil, err
 		}
 
 		var columns []string
+		hasExpressions := false
 		for indexRows.Next() {
 			var seqno, cid int
 			var colName sql.NullString
@@ -343,21 +336,25 @@ func (e *SQLiteExtractor) extractIndexes(ctx context.Context, tableName string) 
 
 			if colName.Valid {
 				columns = append(columns, colName.String)
+			} else {
+				hasExpressions = true
 			}
 		}
 		_ = indexRows.Close()
 
-		if len(columns) > 0 {
+		if len(columns) > 0 || hasExpressions {
 			idx := schema.Index{
-				Name:     name,
-				IsUnique: unique == 1,
-				Columns:  columns,
+				Name:           item.name,
+				IsUnique:       item.isUnique,
+				IsPartial:      item.isPartial,
+				HasExpressions: hasExpressions,
+				Columns:        columns,
 			}
 			indexes = append(indexes, idx)
 		}
 	}
 
-	return indexes, rows.Err()
+	return indexes, nil
 }
 
 // extractCheckConstraints extracts CHECK constraints from the table definition

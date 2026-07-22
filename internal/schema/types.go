@@ -29,15 +29,26 @@ type Column struct {
 
 // Relation represents a foreign key relationship
 type Relation struct {
-	TargetTable  string
+	Name          string
+	TargetSchema  string
+	TargetTable   string
+	TargetColumns []string
+	SourceColumns []string
+	Cardinality   string // 1:1 or N:1, expressed from source to target
+	OnUpdate      string
+	OnDelete      string
+
+	// Deprecated: use TargetColumns and SourceColumns. These aliases remain
+	// populated for single-column relationships for API compatibility.
 	TargetColumn string
 	SourceColumn string
-	Cardinality  string // 1:1, 1:N, N:1
 }
 
 // Index represents a database index
 type Index struct {
-	Name     string
-	Columns  []string
-	IsUnique bool
+	Name           string
+	Columns        []string
+	IsUnique       bool
+	IsPartial      bool // Conditional PostgreSQL or SQLite index
+	HasExpressions bool // Columns is incomplete and cannot prove key uniqueness
 }

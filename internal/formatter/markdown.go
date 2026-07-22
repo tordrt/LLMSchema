@@ -162,16 +162,60 @@ func (f *MarkdownFormatter) FormatRelations(w io.Writer, tableName string, relat
 	}
 	for _, rel := range relations {
 		cardinalityDesc := FormatCardinality(rel.Cardinality, tableName, rel.TargetTable)
-		if _, err := fmt.Fprintf(w, "- %s → %s.%s (%s)\n",
-			rel.SourceColumn,
-			rel.TargetTable,
-			rel.TargetColumn,
-			cardinalityDesc); err != nil {
+		details := []string{cardinalityDesc}
+		if rel.OnDelete != "" && rel.OnDelete != "NO ACTION" {
+			details = append(details, "ON DELETE "+rel.OnDelete)
+		}
+		if rel.OnUpdate != "" && rel.OnUpdate != "NO ACTION" {
+			details = append(details, "ON UPDATE "+rel.OnUpdate)
+		}
+		if _, err := fmt.Fprintf(w, "- %s → %s (%s)\n",
+			formatSourceColumns(relationSourceColumns(rel)),
+			formatRelationTarget(rel),
+			strings.Join(details, "; ")); err != nil {
 			return err
 		}
 	}
 	_, err := fmt.Fprintln(w)
 	return err
+}
+
+func formatSourceColumns(columns []string) string {
+	if len(columns) == 1 {
+		return columns[0]
+	}
+	return "(" + strings.Join(columns, ", ") + ")"
+}
+
+func formatRelationTable(rel schema.Relation) string {
+	table := rel.TargetTable
+	if rel.TargetSchema != "" {
+		table = rel.TargetSchema + "." + table
+	}
+	return table
+}
+
+func formatRelationTarget(rel schema.Relation) string {
+	table := formatRelationTable(rel)
+	targetColumns := relationTargetColumns(rel)
+	if len(targetColumns) == 1 {
+		return table + "." + targetColumns[0]
+	}
+	return table + "(" + strings.Join(targetColumns, ", ") + ")"
+}
+
+func relationSourceColumns(rel schema.Relation) []string {
+	if len(rel.SourceColumns) == 0 && rel.SourceColumn != "" {
+		return []string{rel.SourceColumn}
+	}
+	return rel.SourceColumns
+}
+
+func relationTargetColumns(rel schema.Relation) []string {
+	if len(rel.TargetColumns) == 0 && rel.TargetColumn != "" {
+		return []string{rel.TargetColumn}
+	}
+	return rel.TargetColumns
 }
 
 // FormatIndexes writes index information
@@ -189,7 +233,7 @@ func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, c
 	var filteredIndexes []schema.Index
 	for _, idx := range indexes {
 		// Skip single-column unique indexes if column already has IsUnique
-		if idx.IsUnique && len(idx.Columns) == 1 && columns != nil {
+		if idx.IsUnique && !idx.HasExpressions && len(idx.Columns) == 1 && columns != nil {
 			skip := false
 			for _, col := range columns {
 				if col.Name == idx.Columns[0] && col.IsUnique {
@@ -215,18 +259,28 @@ func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, c
 		return err
 	}
 	for _, idx := range filteredIndexes {
+		attributes := make([]string, 0, 3)
 		if idx.IsUnique {
-			if _, err := fmt.Fprintf(w, "- %s on (%s), unique\n",
-				idx.Name,
-				strings.Join(idx.Columns, ", ")); err != nil {
-				return err
-			}
-		} else {
-			if _, err := fmt.Fprintf(w, "- %s on (%s)\n",
-				idx.Name,
-				strings.Join(idx.Columns, ", ")); err != nil {
-				return err
-			}
+			attributes = append(attributes, "unique")
+		}
+		if idx.IsPartial {
+			attributes = append(attributes, "partial")
+		}
+		if idx.HasExpressions {
+			attributes = append(attributes, "contains expressions")
+		}
+		suffix := ""
+		if len(attributes) > 0 {
+			suffix = ", " + strings.Join(attributes, ", ")
+		}
+		indexColumns := append([]string{}, idx.Columns...)
+		if idx.HasExpressions {
+			indexColumns = append(indexColumns, "<expression>")
+		}
+		if _, err := fmt.Fprintf(w, "- %s on (%s)%s\n",
+			idx.Name,
+			strings.Join(indexColumns, ", "), suffix); err != nil {
+			return err
 		}
 	}
 	_, err := fmt.Fprintln(w)

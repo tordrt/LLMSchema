@@ -37,7 +37,7 @@ func TestMySQLExtraction(t *testing.T) {
 	}
 
 	// Verify tables exist
-	expectedTables := []string{"users", "products", "orders", "order_items"}
+	expectedTables := []string{"users", "products", "orders", "order_items", "profiles", "composite_parents", "composite_children", "expression_children", "external_profiles"}
 	verifyTablesExist(t, s, expectedTables)
 
 	// Verify users table structure
@@ -55,6 +55,9 @@ func TestMySQLExtraction(t *testing.T) {
 
 	// Verify foreign key relationships
 	verifyForeignKey(t, s, "orders", "user_id", "users")
+	verifyConstraintExtraction(t, s)
+	verifyExternalSchemaRelation(t, s, "external_profiles", "identity", "users")
+	verifyExpressionIndexMarked(t, s, "expression_children_user_label")
 }
 
 func TestMySQLSpecificTables(t *testing.T) {

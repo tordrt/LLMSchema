@@ -3,10 +3,16 @@ CREATE DATABASE IF NOT EXISTS testdb;
 USE testdb;
 
 -- Drop tables if they exist
+DROP TABLE IF EXISTS external_profiles;
+DROP TABLE IF EXISTS expression_children;
 DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS composite_children;
+DROP TABLE IF EXISTS composite_parents;
 DROP TABLE IF EXISTS users;
+DROP DATABASE IF EXISTS identity;
 
 -- Enum type equivalent in MySQL
 CREATE TABLE users (
@@ -27,6 +33,43 @@ CREATE TABLE products (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_category (category),
     INDEX idx_price (price)
+);
+
+CREATE TABLE profiles (
+    user_id INT PRIMARY KEY,
+    display_name VARCHAR(100),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE composite_parents (
+    tenant_id INT NOT NULL,
+    id INT NOT NULL,
+    PRIMARY KEY (tenant_id, id)
+);
+
+CREATE TABLE composite_children (
+    tenant_id INT NOT NULL,
+    parent_id INT NOT NULL,
+    sequence_number INT NOT NULL,
+    PRIMARY KEY (tenant_id, parent_id, sequence_number),
+    FOREIGN KEY (tenant_id, parent_id)
+        REFERENCES composite_parents(tenant_id, id) ON UPDATE CASCADE
+);
+
+CREATE TABLE expression_children (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    label VARCHAR(100) NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+CREATE UNIQUE INDEX expression_children_user_label
+    ON expression_children(user_id, (lower(label)));
+
+CREATE DATABASE IF NOT EXISTS identity;
+CREATE TABLE IF NOT EXISTS identity.users (id INT PRIMARY KEY);
+CREATE TABLE external_profiles (
+    user_id INT,
+    FOREIGN KEY (user_id) REFERENCES identity.users(id)
 );
 
 CREATE TABLE orders (
