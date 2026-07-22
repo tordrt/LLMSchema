@@ -1,8 +1,10 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/spf13/pflag"
 	"github.com/tordrt/llmschema/internal/schema"
 )
 
@@ -117,6 +119,16 @@ func TestParseTableList(t *testing.T) {
 			tablesStr:  "",
 			wantTables: nil,
 		},
+		{
+			name:       "empty entries",
+			tablesStr:  "users,, ,posts,",
+			wantTables: []string{"users", "posts"},
+		},
+		{
+			name:       "only empty entries",
+			tablesStr:  ", ,",
+			wantTables: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -135,6 +147,78 @@ func TestParseTableList(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRootCommandValidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		wantErrText string
+	}{
+		{
+			name:        "database URL is required",
+			wantErrText: `required flag(s) "db-url" not set`,
+		},
+		{
+			name:        "positional arguments are rejected",
+			args:        []string{"--db-url", "invalid://database", "unexpected"},
+			wantErrText: "unknown command",
+		},
+		{
+			name:        "output modes are mutually exclusive",
+			args:        []string{"--db-url", "invalid://database", "--output", "schema.md", "--output-dir", "schema"},
+			wantErrText: "if any flags in the group [output output-dir] are set none of the others can be",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetRootCommandFlags(t)
+			rootCmd.SetArgs(tt.args)
+
+			err := rootCmd.Execute()
+			if err == nil || !strings.Contains(err.Error(), tt.wantErrText) {
+				t.Fatalf("Execute() error = %v, want error containing %q", err, tt.wantErrText)
+			}
+		})
+	}
+}
+
+func TestRootCommandAcceptsValidArguments(t *testing.T) {
+	resetRootCommandFlags(t)
+	if err := rootCmd.Flags().Set("db-url", "sqlite://database.db"); err != nil {
+		t.Fatalf("failed to set --db-url: %v", err)
+	}
+	if err := rootCmd.Flags().Set("output", "schema.md"); err != nil {
+		t.Fatalf("failed to set --output: %v", err)
+	}
+
+	if err := rootCmd.Args(rootCmd, nil); err != nil {
+		t.Fatalf("argument validation failed: %v", err)
+	}
+	if err := rootCmd.ValidateRequiredFlags(); err != nil {
+		t.Fatalf("required flag validation failed: %v", err)
+	}
+	if err := rootCmd.ValidateFlagGroups(); err != nil {
+		t.Fatalf("flag group validation failed: %v", err)
+	}
+}
+
+func resetRootCommandFlags(t *testing.T) {
+	t.Helper()
+	rootCmd.Flags().VisitAll(func(flag *pflag.Flag) {
+		if err := flag.Value.Set(flag.DefValue); err != nil {
+			t.Fatalf("failed to reset --%s: %v", flag.Name, err)
+		}
+		flag.Changed = false
+	})
+	t.Cleanup(func() {
+		rootCmd.SetArgs(nil)
+		rootCmd.Flags().VisitAll(func(flag *pflag.Flag) {
+			_ = flag.Value.Set(flag.DefValue)
+			flag.Changed = false
+		})
+	})
 }
 
 func TestPreserveStaleFilesFlagIsAvailable(t *testing.T) {
