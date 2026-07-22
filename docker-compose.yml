@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: testuser
       POSTGRES_DB: testdb
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
       - ./test_postgres_schema.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:

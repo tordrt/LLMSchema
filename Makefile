@@ -4,6 +4,10 @@
 	test-sqlite test-sqlite-file test-sqlite-dir \
 	test-all setup-sqlite clean logs logs-postgres logs-mysql help
 
+POSTGRES_TEST_URL ?= postgres://testuser:testpassword@localhost:55432/testdb?sslmode=disable
+MYSQL_TEST_URL ?= root:testpassword@tcp(localhost:3306)/testdb
+SQLITE_TEST_URL ?= sqlite://test.db
+
 # Build the binary
 build:
 	go build -o llmschema ./cmd/llmschema
@@ -51,73 +55,73 @@ setup-sqlite:
 # Test PostgreSQL output (stdout)
 test-postgres: build docker-up-postgres
 	@echo "\n=== Testing PostgreSQL ==="
-	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
+	./llmschema --db-url "$(POSTGRES_TEST_URL)"
 
 # Test PostgreSQL output (to file)
 test-postgres-file: build docker-up-postgres
 	@mkdir -p output
 	@echo "\n=== Testing PostgreSQL (output to file) ==="
-	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" -o output/postgres-schema.md
+	./llmschema --db-url "$(POSTGRES_TEST_URL)" -o output/postgres-schema.md
 	@echo "Output written to output/postgres-schema.md"
 
 # Test PostgreSQL output (multi-file to directory)
 test-postgres-dir: build docker-up-postgres
 	@mkdir -p output
 	@echo "\n=== Testing PostgreSQL (multi-file output) ==="
-	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable" -d output/postgres-schema/
+	./llmschema --db-url "$(POSTGRES_TEST_URL)" -d output/postgres-schema/
 	@echo "Multi-file output written to output/postgres-schema/"
 
 # Test MySQL output (stdout)
 test-mysql: build docker-up-mysql
 	@echo "\n=== Testing MySQL ==="
-	./llmschema --db-url "mysql://root:testpassword@tcp(localhost:3306)/testdb"
+	./llmschema --db-url "mysql://$(MYSQL_TEST_URL)"
 
 # Test MySQL output (to file)
 test-mysql-file: build docker-up-mysql
 	@mkdir -p output
 	@echo "\n=== Testing MySQL (output to file) ==="
-	./llmschema --db-url "mysql://root:testpassword@tcp(localhost:3306)/testdb" -o output/mysql-schema.md
+	./llmschema --db-url "mysql://$(MYSQL_TEST_URL)" -o output/mysql-schema.md
 	@echo "Output written to output/mysql-schema.md"
 
 # Test MySQL output (multi-file to directory)
 test-mysql-dir: build docker-up-mysql
 	@mkdir -p output
 	@echo "\n=== Testing MySQL (multi-file output) ==="
-	./llmschema --db-url "mysql://root:testpassword@tcp(localhost:3306)/testdb" -d output/mysql-schema/
+	./llmschema --db-url "mysql://$(MYSQL_TEST_URL)" -d output/mysql-schema/
 	@echo "Multi-file output written to output/mysql-schema/"
 
 # Test SQLite output (stdout)
 test-sqlite: build setup-sqlite
 	@echo "\n=== Testing SQLite ==="
-	./llmschema --db-url "sqlite://test.db"
+	./llmschema --db-url "$(SQLITE_TEST_URL)"
 
 # Test SQLite output (to file)
 test-sqlite-file: build setup-sqlite
 	@mkdir -p output
 	@echo "\n=== Testing SQLite (output to file) ==="
-	./llmschema --db-url "sqlite://test.db" -o output/sqlite-schema.md
+	./llmschema --db-url "$(SQLITE_TEST_URL)" -o output/sqlite-schema.md
 	@echo "Output written to output/sqlite-schema.md"
 
 # Test SQLite output (multi-file to directory)
 test-sqlite-dir: build setup-sqlite
 	@mkdir -p output
 	@echo "\n=== Testing SQLite (multi-file output) ==="
-	./llmschema --db-url "sqlite://test.db" -d output/sqlite-schema/
+	./llmschema --db-url "$(SQLITE_TEST_URL)" -d output/sqlite-schema/
 	@echo "Multi-file output written to output/sqlite-schema/"
 
 # Run integration tests against all databases
 test-integration: build docker-up setup-sqlite
 	@echo "\n=== Running integration tests ==="
-	go test -v -tags=integration ./tests/integration/...
+	POSTGRES_TEST_URL="$(POSTGRES_TEST_URL)" MYSQL_TEST_URL="$(MYSQL_TEST_URL)" go test -v -tags=integration ./tests/integration/...
 
 # Quick test - build and test all databases
 test-all: build docker-up setup-sqlite
 	@echo "\n=== Testing PostgreSQL ==="
-	./llmschema --db-url "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
+	./llmschema --db-url "$(POSTGRES_TEST_URL)"
 	@echo "\n=== Testing MySQL ==="
-	./llmschema --db-url "mysql://root:testpassword@tcp(localhost:3306)/testdb"
+	./llmschema --db-url "mysql://$(MYSQL_TEST_URL)"
 	@echo "\n=== Testing SQLite ==="
-	./llmschema --db-url "sqlite://test.db"
+	./llmschema --db-url "$(SQLITE_TEST_URL)"
 
 # Show database logs
 logs:

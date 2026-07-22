@@ -17,7 +17,7 @@ func TestPostgresExtraction(t *testing.T) {
 	// Use environment variable if set, otherwise use default test connection string
 	connString := os.Getenv("POSTGRES_TEST_URL")
 	if connString == "" {
-		connString = "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
+		connString = "postgres://testuser:testpassword@localhost:55432/testdb?sslmode=disable"
 	}
 
 	// Create client
@@ -67,7 +67,7 @@ func TestPostgresSpecificTables(t *testing.T) {
 
 	connString := os.Getenv("POSTGRES_TEST_URL")
 	if connString == "" {
-		connString = "postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable"
+		connString = "postgres://testuser:testpassword@localhost:55432/testdb?sslmode=disable"
 	}
 
 	client, err := db.NewPostgresClient(ctx, connString)
