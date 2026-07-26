@@ -194,14 +194,14 @@ tables and load only the table files relevant to its task.
 
 **Database:** PostgreSQL 17.5
 
-Each table has its own documentation file `docs/db-schema/<table_name>.md`
+Each table has its own documentation file listed below.
 
 ## Tables
 
-- **order_items** (references: orders, products)
-- **orders** (references: users)
-- **products**
-- **users**
+- **order_items** (file: `order_items.md`) (references: orders, products)
+- **orders** (file: `orders.md`) (references: users)
+- **products** (file: `products.md`)
+- **users** (file: `users.md`)
 ```
 
 Each table file contains its columns and, when present, indexes and both

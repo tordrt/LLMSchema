@@ -4,8 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // SQLiteClient manages the connection to SQLite
@@ -15,7 +16,13 @@ type SQLiteClient struct {
 
 // NewSQLiteClient creates a new SQLite client
 func NewSQLiteClient(ctx context.Context, path string) (*SQLiteClient, error) {
-	db, err := sql.Open("sqlite3", path)
+	querySeparator := "?"
+	if strings.Contains(path, "?") {
+		querySeparator = "&"
+	}
+	dsn := path + querySeparator + "_pragma=busy_timeout%285000%29"
+
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

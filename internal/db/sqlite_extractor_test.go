@@ -5,9 +5,70 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/tordrt/llmschema/internal/schema"
 )
+
+func TestSQLiteClientWaitsForTransientLocks(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "locked.db")
+
+	locker, err := NewSQLiteClient(ctx, path)
+	if err != nil {
+		t.Fatalf("NewSQLiteClient() for locker failed: %v", err)
+	}
+	defer func() { _ = locker.Close() }()
+
+	if _, err := locker.GetDB().ExecContext(ctx, `CREATE TABLE test (id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatalf("creating test table failed: %v", err)
+	}
+
+	lockConn, err := locker.GetDB().Conn(ctx)
+	if err != nil {
+		t.Fatalf("getting lock connection failed: %v", err)
+	}
+	defer func() { _ = lockConn.Close() }()
+
+	if _, err := lockConn.ExecContext(ctx, "BEGIN EXCLUSIVE"); err != nil {
+		t.Fatalf("acquiring exclusive lock failed: %v", err)
+	}
+
+	started := make(chan struct{})
+	extractionResult := make(chan error, 1)
+	go func() {
+		close(started)
+		client, openErr := NewSQLiteClient(ctx, path)
+		if openErr != nil {
+			extractionResult <- openErr
+			return
+		}
+		defer func() { _ = client.Close() }()
+
+		_, extractErr := NewSQLiteExtractor(client).ExtractSchema(ctx, nil)
+		extractionResult <- extractErr
+	}()
+
+	<-started
+	select {
+	case err := <-extractionResult:
+		t.Fatalf("schema extraction returned while database was locked: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	if _, err := lockConn.ExecContext(ctx, "COMMIT"); err != nil {
+		t.Fatalf("releasing exclusive lock failed: %v", err)
+	}
+
+	select {
+	case err := <-extractionResult:
+		if err != nil {
+			t.Fatalf("ExtractSchema() failed after transient lock: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("ExtractSchema() did not resume after transient lock")
+	}
+}
 
 func TestSQLiteExtractorIncludesDatabaseMetadata(t *testing.T) {
 	ctx := context.Background()
