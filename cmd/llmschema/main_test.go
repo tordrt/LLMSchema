@@ -70,6 +70,8 @@ func TestParseTableList(t *testing.T) {
 }
 
 func TestRootCommandValidation(t *testing.T) {
+	t.Setenv(databaseURLEnv, "")
+
 	tests := []struct {
 		name        string
 		args        []string
@@ -77,7 +79,7 @@ func TestRootCommandValidation(t *testing.T) {
 	}{
 		{
 			name:        "database URL is required",
-			wantErrText: `required flag(s) "db-url" not set`,
+			wantErrText: "--db-url is required or DATABASE_URL must be set",
 		},
 		{
 			name:        "positional arguments are rejected",
@@ -104,6 +106,68 @@ func TestRootCommandValidation(t *testing.T) {
 				t.Fatalf("Execute() error = %v, want error containing %q", err, tt.wantErrText)
 			}
 		})
+	}
+}
+
+func TestRootCommandDatabaseURLSources(t *testing.T) {
+	tests := []struct {
+		name      string
+		envURL    string
+		args      []string
+		wantDBURL string
+	}{
+		{
+			name:      "environment variable",
+			envURL:    "sqlite://environment.db",
+			wantDBURL: "sqlite://environment.db",
+		},
+		{
+			name:      "flag takes precedence",
+			envURL:    "sqlite://environment.db",
+			args:      []string{"--db-url", testDatabaseURL},
+			wantDBURL: testDatabaseURL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(databaseURLEnv, tt.envURL)
+			cmd := newRootCmd(func(_ context.Context, databaseURL string, _ *llmschema.Options, _ *llmschema.OutputOptions) error {
+				if databaseURL != tt.wantDBURL {
+					t.Errorf("database URL = %q, want %q", databaseURL, tt.wantDBURL)
+				}
+				return nil
+			})
+			cmd.SetOut(io.Discard)
+			cmd.SetArgs(tt.args)
+
+			if err := cmd.Execute(); err != nil {
+				t.Fatalf("Execute() failed: %v", err)
+			}
+		})
+	}
+}
+
+func TestRootCommandVersion(t *testing.T) {
+	originalVersion := version
+	version = "1.2.3"
+	t.Cleanup(func() {
+		version = originalVersion
+	})
+
+	var output strings.Builder
+	cmd := newRootCmd(func(context.Context, string, *llmschema.Options, *llmschema.OutputOptions) error {
+		t.Fatal("ExtractAndFormat called for --version")
+		return nil
+	})
+	cmd.SetOut(&output)
+	cmd.SetArgs([]string{"--version"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() failed: %v", err)
+	}
+	if got, want := output.String(), "llmschema version 1.2.3\n"; got != want {
+		t.Fatalf("version output = %q, want %q", got, want)
 	}
 }
 
