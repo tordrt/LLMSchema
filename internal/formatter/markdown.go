@@ -93,17 +93,32 @@ func (f *MarkdownFormatter) FormatColumns(w io.Writer, columns []schema.Column, 
 
 		if hasConstraints {
 			constraints := FormatTableConstraints(col, primaryKey)
-			if _, err := fmt.Fprintf(w, "| %s | %s | %s |\n", col.Name, typeStr, constraints); err != nil {
+			if _, err := fmt.Fprintf(w, "| %s | %s | %s |\n",
+				escapeMarkdownTableCell(col.Name),
+				escapeMarkdownTableCell(typeStr),
+				escapeMarkdownTableCell(constraints)); err != nil {
 				return err
 			}
 		} else {
-			if _, err := fmt.Fprintf(w, "| %s | %s |\n", col.Name, typeStr); err != nil {
+			if _, err := fmt.Fprintf(w, "| %s | %s |\n",
+				escapeMarkdownTableCell(col.Name),
+				escapeMarkdownTableCell(typeStr)); err != nil {
 				return err
 			}
 		}
 	}
 	_, err := fmt.Fprintln(w)
 	return err
+}
+
+func escapeMarkdownTableCell(value string) string {
+	return strings.NewReplacer(
+		"\r\n", "<br>",
+		"\r", "<br>",
+		"\n", "<br>",
+		`\`, `\\`,
+		"|", `\|`,
+	).Replace(value)
 }
 
 // buildTypeString builds SQL-like type string with PK prefix, nullability, and default
@@ -275,7 +290,7 @@ func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, c
 		}
 		indexColumns := append([]string{}, idx.Columns...)
 		if idx.HasExpressions {
-			indexColumns = append(indexColumns, "<expression>")
+			indexColumns = append(indexColumns, "`<expression>`")
 		}
 		if _, err := fmt.Fprintf(w, "- %s on (%s)%s\n",
 			idx.Name,

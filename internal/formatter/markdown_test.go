@@ -54,6 +54,29 @@ func TestFormatRelationsSupportsCompositeKeysAndActions(t *testing.T) {
 	}
 }
 
+func TestFormatColumnsEscapesMarkdownTableCells(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	defaultValue := "'left|right\nnext\\line'"
+	checkConstraint := "value <> 'a|b'\r\nAND value IS NOT NULL"
+
+	err := formatter.FormatColumns(&output, []schema.Column{{
+		Name:            "config|value",
+		Type:            "text",
+		Nullable:        true,
+		DefaultValue:    &defaultValue,
+		CheckConstraint: &checkConstraint,
+	}}, nil, nil)
+	if err != nil {
+		t.Fatalf("FormatColumns() failed: %v", err)
+	}
+
+	want := "| config\\|value | text DEFAULT 'left\\|right<br>next\\\\line' | CHECK(value <> 'a\\|b'<br>AND value IS NOT NULL) |"
+	if got := output.String(); !strings.Contains(got, want) {
+		t.Fatalf("output missing %q:\n%s", want, got)
+	}
+}
+
 func TestFormatIndexesMarksExpressions(t *testing.T) {
 	var output bytes.Buffer
 	formatter := NewMarkdownFormatter(&output)
@@ -68,7 +91,7 @@ func TestFormatIndexesMarksExpressions(t *testing.T) {
 		t.Fatalf("FormatIndexes() failed: %v", err)
 	}
 
-	want := "- expression_children_user_label on (user_id, <expression>), unique, contains expressions"
+	want := "- expression_children_user_label on (user_id, `<expression>`), unique, contains expressions"
 	if got := output.String(); !strings.Contains(got, want) {
 		t.Fatalf("output missing %q:\n%s", want, got)
 	}
@@ -96,7 +119,7 @@ func TestFormatPreservesExpressionIndexOnUniqueColumn(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	want := "- expression_children_user_label on (user_id, <expression>), unique, contains expressions"
+	want := "- expression_children_user_label on (user_id, `<expression>`), unique, contains expressions"
 	if got := output.String(); !strings.Contains(got, want) {
 		t.Fatalf("output missing %q:\n%s", want, got)
 	}
