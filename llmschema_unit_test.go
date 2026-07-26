@@ -1,9 +1,12 @@
 package llmschema
 
 import (
+	"bytes"
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/tordrt/llmschema/internal/schema"
 )
 
 func TestMySQLSchemaNameErrorProvidesLibraryAndCLIGuidance(t *testing.T) {
@@ -17,5 +20,28 @@ func TestMySQLSchemaNameErrorProvidesLibraryAndCLIGuidance(t *testing.T) {
 		if !strings.Contains(err.Error(), guidance) {
 			t.Errorf("mySQLSchemaNameError() = %q, want guidance containing %q", err, guidance)
 		}
+	}
+}
+
+func TestFormatSchemaCanOmitTableIndex(t *testing.T) {
+	s := &schema.Schema{Tables: []schema.Table{{Name: "users"}}}
+
+	var defaultOutput bytes.Buffer
+	if err := FormatSchema(s, &OutputOptions{Writer: &defaultOutput}); err != nil {
+		t.Fatalf("FormatSchema() with defaults failed: %v", err)
+	}
+	if !strings.Contains(defaultOutput.String(), "- [users](#users)") {
+		t.Fatalf("default output missing table index:\n%s", defaultOutput.String())
+	}
+
+	var outputWithoutIndex bytes.Buffer
+	if err := FormatSchema(s, &OutputOptions{
+		Writer:         &outputWithoutIndex,
+		OmitTableIndex: true,
+	}); err != nil {
+		t.Fatalf("FormatSchema() without table index failed: %v", err)
+	}
+	if strings.Contains(outputWithoutIndex.String(), "- [users](#users)") {
+		t.Fatalf("output contains omitted table index:\n%s", outputWithoutIndex.String())
 	}
 }

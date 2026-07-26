@@ -17,6 +17,108 @@ func (failingWriter) Write([]byte) (int, error) {
 	return 0, errWriteFailed
 }
 
+func TestFormatIncludesLinkedTableIndexByDefault(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{Tables: []schema.Table{
+		{Name: "Order Items"},
+		{Name: "audit.logs"},
+		{Name: "users"},
+	}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	want := `# Database Schema
+
+- [Order Items](#order-items)
+- [audit.logs](#auditlogs)
+- [users](#users)
+
+## Order Items
+`
+	if got := output.String(); !strings.HasPrefix(got, want) {
+		t.Fatalf("output prefix:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatCanOmitTableIndex(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	formatter.OmitTableIndex = true
+
+	if err := formatter.Format(&schema.Schema{Tables: []schema.Table{{Name: "users"}}}); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	if got := output.String(); strings.Contains(got, "- [users](#users)") {
+		t.Fatalf("output contains table index:\n%s", got)
+	}
+}
+
+func TestFormatTableIndexHandlesAnchorCollisions(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{Tables: []schema.Table{
+		{Name: "Database Schema"},
+		{Name: "Database-Schema"},
+		{Name: "audit.logs"},
+		{Name: "auditlogs"},
+		{Name: "!!!"},
+	}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	for _, want := range []string{
+		"- [Database Schema](#database-schema-1)",
+		"- [Database-Schema](#database-schema-2)",
+		"- [audit.logs](#auditlogs)",
+		"- [auditlogs](#auditlogs-1)",
+		"- !!!",
+	} {
+		if got := output.String(); !strings.Contains(got, want) {
+			t.Errorf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func TestFormatTableIndexAccountsForGeneratedSubheadings(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{Tables: []schema.Table{
+		{
+			Name: "orders",
+			Indexes: []schema.Index{{
+				Name:    "orders_created_at",
+				Columns: []string{"created_at"},
+			}},
+			Relations: []schema.Relation{{
+				SourceColumn: "user_id",
+				TargetTable:  "users",
+				TargetColumn: "id",
+			}},
+		},
+		{Name: "Index"},
+		{Name: "References"},
+	}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	for _, want := range []string{
+		"- [Index](#index-1)",
+		"- [References](#references-1)",
+	} {
+		if got := output.String(); !strings.Contains(got, want) {
+			t.Errorf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestFormatRelationsSupportsCompositeKeysAndActions(t *testing.T) {
 	var output bytes.Buffer
 	formatter := NewMarkdownFormatter(&output)

@@ -4,13 +4,15 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
 
 	"github.com/tordrt/llmschema/internal/schema"
 )
 
 // MarkdownFormatter formats schema as markdown
 type MarkdownFormatter struct {
-	writer io.Writer
+	writer         io.Writer
+	OmitTableIndex bool
 }
 
 // NewMarkdownFormatter creates a new markdown formatter
@@ -27,12 +29,82 @@ func (f *MarkdownFormatter) Format(s *schema.Schema) error {
 		return err
 	}
 
+	if !f.OmitTableIndex && len(s.Tables) > 0 {
+		if err := f.formatTableIndex(s.Tables); err != nil {
+			return err
+		}
+	}
+
 	for _, table := range s.Tables {
 		if err := f.formatTable(table); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (f *MarkdownFormatter) formatTableIndex(tables []schema.Table) error {
+	usedAnchors := make(map[string]bool)
+	reserveMarkdownHeadingAnchor("Database Schema", usedAnchors)
+
+	for _, table := range tables {
+		anchor := reserveMarkdownHeadingAnchor(table.Name, usedAnchors)
+		tableName := escapeMarkdownLinkText(table.Name)
+		if anchor == "" {
+			if _, err := fmt.Fprintf(f.writer, "- %s\n", tableName); err != nil {
+				return err
+			}
+		} else {
+			if _, err := fmt.Fprintf(f.writer, "- [%s](#%s)\n", tableName, anchor); err != nil {
+				return err
+			}
+		}
+
+		if len(indexesForOutput(table.Indexes, table.Columns)) > 0 {
+			reserveMarkdownHeadingAnchor("Index", usedAnchors)
+		}
+		if len(table.Relations) > 0 {
+			reserveMarkdownHeadingAnchor("References", usedAnchors)
+		}
+	}
+	_, err := fmt.Fprintln(f.writer)
+	return err
+}
+
+func reserveMarkdownHeadingAnchor(heading string, usedAnchors map[string]bool) string {
+	baseAnchor := markdownHeadingAnchor(heading)
+	anchor := baseAnchor
+	for suffix := 1; anchor != "" && usedAnchors[anchor]; suffix++ {
+		anchor = fmt.Sprintf("%s-%d", baseAnchor, suffix)
+	}
+	if anchor != "" {
+		usedAnchors[anchor] = true
+	}
+	return anchor
+}
+
+func markdownHeadingAnchor(heading string) string {
+	var anchor strings.Builder
+	for _, r := range strings.ToLower(heading) {
+		switch {
+		case unicode.IsLetter(r), unicode.IsNumber(r), r == '_', r == '-':
+			anchor.WriteRune(r)
+		case unicode.IsSpace(r):
+			anchor.WriteByte('-')
+		}
+	}
+	return anchor.String()
+}
+
+func escapeMarkdownLinkText(value string) string {
+	return strings.NewReplacer(
+		"\r\n", " ",
+		"\r", " ",
+		"\n", " ",
+		`\`, `\\`,
+		"[", `\[`,
+		"]", `\]`,
+	).Replace(value)
 }
 
 // FormatTable formats a single table (exported for use by multifile formatter)
@@ -240,29 +312,8 @@ func (f *MarkdownFormatter) FormatIndexes(w io.Writer, indexes []schema.Index) e
 
 // formatIndexes writes index information, optionally filtering out single-column unique indexes
 func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, columns []schema.Column) error {
-	if len(indexes) == 0 {
-		return nil
-	}
-
 	// Filter out single-column unique indexes if the column is already marked as UNIQUE
-	var filteredIndexes []schema.Index
-	for _, idx := range indexes {
-		// Skip single-column unique indexes if column already has IsUnique
-		if idx.IsUnique && !idx.HasExpressions && len(idx.Columns) == 1 && columns != nil {
-			skip := false
-			for _, col := range columns {
-				if col.Name == idx.Columns[0] && col.IsUnique {
-					skip = true
-					break
-				}
-			}
-			if skip {
-				continue
-			}
-		}
-		filteredIndexes = append(filteredIndexes, idx)
-	}
-
+	filteredIndexes := indexesForOutput(indexes, columns)
 	if len(filteredIndexes) == 0 {
 		return nil
 	}
@@ -300,6 +351,27 @@ func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, c
 	}
 	_, err := fmt.Fprintln(w)
 	return err
+}
+
+func indexesForOutput(indexes []schema.Index, columns []schema.Column) []schema.Index {
+	var filteredIndexes []schema.Index
+	for _, idx := range indexes {
+		// Skip single-column unique indexes if column already has IsUnique
+		if idx.IsUnique && !idx.HasExpressions && len(idx.Columns) == 1 && columns != nil {
+			skip := false
+			for _, col := range columns {
+				if col.Name == idx.Columns[0] && col.IsUnique {
+					skip = true
+					break
+				}
+			}
+			if skip {
+				continue
+			}
+		}
+		filteredIndexes = append(filteredIndexes, idx)
+	}
+	return filteredIndexes
 }
 
 // FormatTableConstraints formats constraints for table output (only CHECK constraints now)

@@ -78,6 +78,9 @@ func TestRootCommandDescribesSingleFileAsDefault(t *testing.T) {
 	if got := cmd.Flags().Lookup("output-dir").Usage; got != "Output directory for optional multi-file output" {
 		t.Errorf("--output-dir usage = %q", got)
 	}
+	if got := cmd.Flags().Lookup("no-table-index").Usage; got != "Exclude the table index from single-file output" {
+		t.Errorf("--no-table-index usage = %q", got)
+	}
 }
 
 func TestRootCommandValidation(t *testing.T) {
@@ -216,6 +219,9 @@ func TestRootCommandPassesContextAndOptionsToLibrary(t *testing.T) {
 		if !outOpts.PreserveStaleFiles {
 			t.Error("PreserveStaleFiles = false, want true")
 		}
+		if !outOpts.OmitTableIndex {
+			t.Error("OmitTableIndex = false, want true")
+		}
 		return nil
 	})
 	cmd.SetArgs([]string{
@@ -225,6 +231,7 @@ func TestRootCommandPassesContextAndOptionsToLibrary(t *testing.T) {
 		"--schema", "main",
 		"--output-dir", "docs/schema",
 		"--no-database-info",
+		"--no-table-index",
 		"--preserve-stale-files",
 	})
 
