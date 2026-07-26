@@ -8,7 +8,7 @@
 
 **Dead simple database schema docs for LLMs and AI agents.**
 
-LLMSchema extracts database schemas from PostgreSQL, MySQL, and SQLite into concise markdown files. These files are optimized for AI agents (Claude Code, Cursor, etc.) to browse efficiently and for humans to reference easily.
+LLMSchema extracts database schemas from PostgreSQL, MySQL, and SQLite into concise Markdown documents. The default single-file format is easy to give to AI agents (Claude Code, Cursor, etc.), search, share, and review.
 
 ## Why?
 
@@ -20,8 +20,8 @@ By providing a lightweight, structured overview, AI agents can understand your d
 
 ## Features
 
-- **Concise Markdown Output:** Structured tables and relationships optimized for token efficiency.
-- **Multi-file Support:** Generates one file per table for targeted context loading.
+- **Concise Markdown Output:** Keeps the complete schema in one portable document by default.
+- **Optional Multi-file Output:** Splits large schemas into one file per table for targeted context loading.
 - **Broad Compatibility:** Supports PostgreSQL, MySQL, and SQLite.
 - **Deep Extraction:** Captures columns, types, foreign keys, indexes, and constraints.
 
@@ -39,6 +39,9 @@ go install github.com/tordrt/llmschema/cmd/llmschema@latest
 curl -fsSL https://raw.githubusercontent.com/tordrt/llmschema/main/install.sh | sh
 ```
 
+You can also just give your AI coding agent this repository's URL and ask it to
+install LLMSchema and set it up for your project.
+
 ### Go Library
 
 ```bash
@@ -52,17 +55,19 @@ go get github.com/tordrt/llmschema
 Generate schema documentation for your database:
 
 ```bash
-llmschema --db-url "postgres://user:pass@localhost:5432/mydb" -d docs/db-schema
+llmschema --db-url "postgres://user:pass@localhost:5432/mydb" -o schema.md
 ```
 
 Alternatively, set `DATABASE_URL` to keep credentials out of command arguments:
 
 ```bash
 export DATABASE_URL="postgres://user:pass@localhost:5432/mydb"
-llmschema -d docs/db-schema
+llmschema -o schema.md
 ```
 
-An explicit `--db-url` takes precedence over `DATABASE_URL`.
+This writes the complete schema to one Markdown file. Without `--output`,
+LLMSchema writes the same document to stdout. An explicit `--db-url` takes
+precedence over `DATABASE_URL`.
 
 ### Connection Strings
 
@@ -76,25 +81,33 @@ An explicit `--db-url` takes precedence over `DATABASE_URL`.
 
 **Filter Specific Tables**
 ```bash
-llmschema --db-url "$DB_URL" -d docs/db-schema -t "users,posts,comments"
+llmschema --db-url "$DB_URL" -o schema.md -t "users,posts,comments"
 ```
 
 **Exclude Tables**
 ```bash
-llmschema --db-url "$DB_URL" -d docs/db-schema -e "migrations,audit_logs"
+llmschema --db-url "$DB_URL" -o schema.md -e "migrations,audit_logs"
 ```
 
-**Single File Output**
+**Print to stdout**
 ```bash
-llmschema --db-url "$DB_URL" -o schema.md
+llmschema --db-url "$DB_URL"
 ```
 
-**Omit Database Details From the Overview**
+**Split a Large Schema Into Multiple Files**
+```bash
+llmschema --db-url "$DB_URL" -d docs/db-schema
+```
+
+Multi-file output creates an overview and one file per table so an agent can
+load only the tables relevant to its task.
+
+**Omit Database Details From a Multi-file Overview**
 ```bash
 llmschema --db-url "$DB_URL" -d docs/db-schema --no-database-info
 ```
 
-**Preserve Table Files From Previous Runs**
+**Preserve Table Files From Previous Multi-file Runs**
 ```bash
 llmschema --db-url "$DB_URL" -d docs/db-schema --preserve-stale-files
 ```
@@ -107,7 +120,7 @@ Add to your `Makefile` or migration script to keep docs up-to-date:
 ```makefile
 migrate:
     goose postgres "$(DB_URL)" up
-    llmschema --db-url "$(DB_URL)" -d docs/db-schema
+    llmschema --db-url "$(DB_URL)" -o schema.md
 ```
 
 ### Command Line Flags
@@ -115,8 +128,8 @@ migrate:
 | Flag | Short | Description | Default |
 |------|-------|-------------|---------|
 | `--db-url` | | Database connection string | `$DATABASE_URL` |
-| `--output-dir` | `-d` | Output directory for multi-file output (Recommended) | - |
-| `--output` | `-o` | Output file path (for single-file output) | stdout |
+| `--output` | `-o` | Output file for the single-file schema | stdout |
+| `--output-dir` | `-d` | Output directory for optional multi-file output | - |
 | `--tables` | `-t` | Comma-separated list of tables to extract | All tables |
 | `--exclude-tables` | `-e` | Comma-separated list of tables to exclude | - |
 | `--schema` | `-s` | Database schema name (PostgreSQL/MySQL) | `public` (PG) / Auto (MySQL) |
@@ -126,15 +139,29 @@ migrate:
 
 ## AI Context Integration
 
-For tools like **Claude Code** or **Cursor**, simply reference the generated overview file in your project instructions (e.g., `CLAUDE.md` or `.cursorrules`).
+Commit the generated schema document with your project and point your coding
+agent to it from the repository instructions.
+
+For [Claude Code](https://code.claude.com/docs/en/memory), import it from
+`CLAUDE.md`:
 
 ```markdown
---- CLAUDE.md ---
-
-@docs/db-schema/_overview.md
-
-<!-- The agent can now read the overview and pull in specific table docs as needed. -->
+@schema.md
 ```
+
+For Codex and other agents that read `AGENTS.md`, add a direct instruction:
+
+```markdown
+## Database schema
+
+Read `schema.md` before making database-related changes.
+Regenerate it after migrations with:
+`llmschema --db-url "$DATABASE_URL" -o schema.md`
+```
+
+For a very large database using multi-file output, point the agent to
+`docs/db-schema/_overview.md` instead. It can then open individual table files
+as needed.
 
 ## Library Usage
 
@@ -146,18 +173,26 @@ package main
 import (
     "context"
     "log"
+    "os"
+
     "github.com/tordrt/llmschema"
 )
 
 func main() {
-    err := llmschema.ExtractAndFormat(
+    schemaFile, err := os.Create("schema.md")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer schemaFile.Close()
+
+    err = llmschema.ExtractAndFormat(
         context.Background(),
         "postgres://user:pass@localhost:5432/mydb",
         &llmschema.Options{
             ExcludeTables: []string{"migrations"},
         },
         &llmschema.OutputOptions{
-            OutputDir: "llm-docs/db-schema",
+            Writer: schemaFile,
         },
     )
     if err != nil {
@@ -168,8 +203,26 @@ func main() {
 
 ## Output Format
 
-Multi-file output creates an overview plus one Markdown file per table. For
-example, the sample e-commerce schema used in this repository produces:
+Single-file output begins with `# Database Schema` and includes every table,
+its columns, indexes, and relationships in one Markdown document:
+
+```markdown
+# Database Schema
+
+## orders
+
+| Column | Type |
+|--------|------|
+| id | PK integer NOT NULL |
+| user_id | integer NOT NULL |
+
+### References
+
+- user_id → users.id (many orders to one users)
+```
+
+For large databases, `--output-dir docs/db-schema` instead creates an overview
+plus one Markdown file per table:
 
 ```text
 docs/db-schema/
@@ -233,9 +286,6 @@ outgoing and incoming relationships.
 
 - order_items.order_id → id (many order_items to one orders)
 ```
-
-Using `--output schema.md` instead writes the same table details to a single
-Markdown file headed by `# Database Schema`.
 
 ## Contributing
 

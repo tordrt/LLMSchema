@@ -70,8 +70,8 @@ func newRootCmd(extractAndFormat extractAndFormatFunc) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&opts.dbURL, "db-url", "", "Database connection string (defaults to DATABASE_URL)")
-	cmd.Flags().StringVarP(&opts.outputFile, "output", "o", "", "Output file (default: stdout)")
-	cmd.Flags().StringVarP(&opts.outputDir, "output-dir", "d", "", "Output directory for multi-file output (recommended)")
+	cmd.Flags().StringVarP(&opts.outputFile, "output", "o", "", "Output file for the single-file schema (default: stdout)")
+	cmd.Flags().StringVarP(&opts.outputDir, "output-dir", "d", "", "Output directory for optional multi-file output")
 	cmd.Flags().StringVarP(&opts.tables, "tables", "t", "", "Specific tables (comma-separated, optional)")
 	cmd.Flags().StringVarP(&opts.excludeTables, "exclude-tables", "e", "", "Tables to exclude (comma-separated, optional)")
 	cmd.Flags().StringVarP(&opts.schemaName, "schema", "s", "", "Database schema name (optional: defaults to 'public' for PostgreSQL, auto-detected from connection string for MySQL)")

@@ -69,6 +69,17 @@ func TestParseTableList(t *testing.T) {
 	}
 }
 
+func TestRootCommandDescribesSingleFileAsDefault(t *testing.T) {
+	cmd := newRootCmd(llmschema.ExtractAndFormat)
+
+	if got := cmd.Flags().Lookup("output").Usage; got != "Output file for the single-file schema (default: stdout)" {
+		t.Errorf("--output usage = %q", got)
+	}
+	if got := cmd.Flags().Lookup("output-dir").Usage; got != "Output directory for optional multi-file output" {
+		t.Errorf("--output-dir usage = %q", got)
+	}
+}
+
 func TestRootCommandValidation(t *testing.T) {
 	t.Setenv(databaseURLEnv, "")
 

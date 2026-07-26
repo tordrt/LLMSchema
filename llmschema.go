@@ -14,7 +14,7 @@
 //		context.Background(),
 //		"postgres://user:pass@localhost/db",
 //		&llmschema.Options{ExcludeTables: []string{"migrations"}},
-//		&llmschema.OutputOptions{OutputDir: "llm-docs/db-schema"},
+//		&llmschema.OutputOptions{Writer: os.Stdout},
 //	)
 //
 // # Database Connection URLs
@@ -30,11 +30,9 @@
 //
 //	&OutputOptions{Writer: os.Stdout}  // or any io.Writer
 //
-// Multi-file output creates a directory with _overview.md and one file per table (Recommended):
+// Multi-file output is available for large schemas that benefit from selective loading:
 //
 //	&OutputOptions{OutputDir: "docs/schema"}
-//
-// Multi-file output is recommended for AI agents as it provides better context management.
 package llmschema
 
 import (
@@ -93,8 +91,8 @@ type Options struct {
 // If both are specified, OutputDir takes precedence and Writer is ignored.
 // If neither is specified, defaults to single-file output to os.Stdout.
 //
-// Multi-file output is recommended for AI agents as it provides better
-// context management and allows selective loading of specific tables.
+// Single-file output is the simplest choice for most schemas. Multi-file output
+// allows selective loading when a schema is too large to use conveniently as one document.
 type OutputOptions struct {
 	// Writer specifies where to write single-file output.
 	// Can be os.Stdout, a file handle, bytes.Buffer, or any io.Writer.
@@ -138,7 +136,7 @@ type OutputOptions struct {
 //   - Schema extraction fails
 //   - Output writing fails (e.g., directory creation, file write)
 //
-// Example (multi-file output):
+// Example (single-file output):
 //
 //	err := llmschema.ExtractAndFormat(
 //		ctx,
@@ -147,17 +145,17 @@ type OutputOptions struct {
 //			ExcludeTables: []string{"migrations"},
 //		},
 //		&llmschema.OutputOptions{
-//			OutputDir: "llm-docs/db-schema",
+//			Writer: os.Stdout,
 //		},
 //	)
 //
-// Example (single-file to stdout):
+// Example (multi-file output for a large schema):
 //
 //	err := llmschema.ExtractAndFormat(
 //		ctx,
 //		"sqlite://data.db",
-//		nil,  // Extract all tables
-//		nil,  // Write to stdout
+//		nil,
+//		&llmschema.OutputOptions{OutputDir: "docs/schema"},
 //	)
 func ExtractAndFormat(ctx context.Context, databaseURL string, opts *Options, outOpts *OutputOptions) error {
 	s, err := ExtractSchema(ctx, databaseURL, opts)
@@ -264,9 +262,7 @@ func ExtractSchema(ctx context.Context, databaseURL string, opts *Options) (*sch
 //	// ... custom logic ...
 //
 //	// Phase 3: Format
-//	err = llmschema.FormatSchema(schema, &llmschema.OutputOptions{
-//		OutputDir: "docs/schema",
-//	})
+//	err = llmschema.FormatSchema(schema, &llmschema.OutputOptions{Writer: os.Stdout})
 func FormatSchema(s *schema.Schema, opts *OutputOptions) error {
 	if opts == nil {
 		opts = &OutputOptions{Writer: os.Stdout}
