@@ -12,9 +12,9 @@ simple, concise Markdown documentation. [See example output](#output-format).
 
 ## Why?
 
-AI coding agents need an accurate understanding of your database schema to work effectively on your application. Without dedicated schema documentation, they often have to reconstruct it from application code and migration histories—a slower and less reliable use of context.
+AI coding agents need an accurate understanding of your database schema to work effectively on your application. Without dedicated schema documentation, they often have to reconstruct it from application code and migration histories, which is a slower and less reliable use of context.
 
-LLMSchema extracts the essentials—tables, columns, types, indexes, constraints, and relationships—into concise Markdown. It produces a single portable document by default, with optional per-table files for larger schemas.
+LLMSchema extracts tables, columns, types, indexes, constraints, and relationships into concise Markdown. It produces a single portable document by default, with optional per-table files.
 
 This gives AI agents a clear and concise understanding of your data model without overwhelming their context window with irrelevant details.
 
