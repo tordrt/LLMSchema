@@ -121,9 +121,15 @@ use the per-table files for targeted, in-depth work.
 **Automated CI/Migration Integration**
 Add to your `Makefile` or migration script to keep docs up-to-date:
 ```makefile
+.PHONY: migrate schema
+
 migrate:
-    goose postgres "$(DATABASE_URL)" up
-    llmschema -o schema.md
+	# Example using Goose; replace with your project's migration command.
+	goose postgres "$(DATABASE_URL)" up
+	$(MAKE) schema
+
+schema:
+	llmschema -o schema.md
 ```
 
 ### Command Line Flags
