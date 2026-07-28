@@ -11,8 +11,9 @@ import (
 
 // MarkdownFormatter formats schema as markdown
 type MarkdownFormatter struct {
-	writer         io.Writer
-	OmitTableIndex bool
+	writer           io.Writer
+	OmitDatabaseInfo bool
+	OmitTableIndex   bool
 }
 
 // NewMarkdownFormatter creates a new markdown formatter
@@ -27,6 +28,20 @@ func (f *MarkdownFormatter) Format(s *schema.Schema) error {
 	}
 	if _, err := fmt.Fprintln(f.writer); err != nil {
 		return err
+	}
+
+	if !f.OmitDatabaseInfo && s.DatabaseType != "" {
+		if _, err := fmt.Fprintf(f.writer, "**Database:** %s", s.DatabaseType); err != nil {
+			return err
+		}
+		if s.DatabaseVersion != "" {
+			if _, err := fmt.Fprintf(f.writer, " %s", s.DatabaseVersion); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprint(f.writer, "\n\n"); err != nil {
+			return err
+		}
 	}
 
 	if !f.OmitTableIndex && len(s.Tables) > 0 {

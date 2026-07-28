@@ -17,6 +17,43 @@ func (failingWriter) Write([]byte) (int, error) {
 	return 0, errWriteFailed
 }
 
+func TestFormatIncludesDatabaseInfoByDefault(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{
+		DatabaseType:    "PostgreSQL",
+		DatabaseVersion: "17.5",
+	}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	want := "# Database Schema\n\n**Database:** PostgreSQL 17.5\n\n"
+	if got := output.String(); got != want {
+		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatCanOmitDatabaseInfo(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	formatter.OmitDatabaseInfo = true
+	s := &schema.Schema{
+		DatabaseType:    "PostgreSQL",
+		DatabaseVersion: "17.5",
+	}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	want := "# Database Schema\n\n"
+	if got := output.String(); got != want {
+		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestFormatIncludesLinkedTableIndexByDefault(t *testing.T) {
 	var output bytes.Buffer
 	formatter := NewMarkdownFormatter(&output)

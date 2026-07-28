@@ -45,3 +45,21 @@ func TestFormatSchemaCanOmitTableIndex(t *testing.T) {
 		t.Fatalf("output contains omitted table index:\n%s", outputWithoutIndex.String())
 	}
 }
+
+func TestFormatSchemaCanOmitDatabaseInfo(t *testing.T) {
+	s := &schema.Schema{
+		DatabaseType:    "PostgreSQL",
+		DatabaseVersion: "17.5",
+	}
+
+	var output bytes.Buffer
+	if err := FormatSchema(s, &OutputOptions{
+		Writer:           &output,
+		OmitDatabaseInfo: true,
+	}); err != nil {
+		t.Fatalf("FormatSchema() without database info failed: %v", err)
+	}
+	if strings.Contains(output.String(), "Database:") || strings.Contains(output.String(), "17.5") {
+		t.Fatalf("output contains omitted database info:\n%s", output.String())
+	}
+}

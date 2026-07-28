@@ -108,8 +108,8 @@ type OutputOptions struct {
 	// Takes precedence over Writer if both are set.
 	OutputDir string
 
-	// OmitDatabaseInfo excludes the database type and version from _overview.md.
-	// Database information is included by default for multi-file output.
+	// OmitDatabaseInfo excludes the database type and version from the output.
+	// Database information is included by default.
 	OmitDatabaseInfo bool
 
 	// PreserveStaleFiles prevents multi-file output from deleting table files
@@ -286,6 +286,7 @@ func FormatSchema(s *schema.Schema, opts *OutputOptions) error {
 		writer = os.Stdout
 	}
 	f := formatter.NewMarkdownFormatter(writer)
+	f.OmitDatabaseInfo = opts.OmitDatabaseInfo
 	f.OmitTableIndex = opts.OmitTableIndex
 	return f.Format(s)
 }
