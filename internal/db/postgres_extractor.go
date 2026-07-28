@@ -28,9 +28,11 @@ func NewExtractor(client *PostgresClient, schemaName string) *Extractor {
 func (e *Extractor) ExtractSchema(ctx context.Context, tables []string) (*schema.Schema, error) {
 	var extractedTables []schema.Table
 	var databaseVersion string
+	var databaseName string
 	// Version metadata is optional: compatible servers and proxies may not
 	// support this query even when schema extraction itself works.
 	_ = e.client.GetConnection().QueryRow(ctx, "SHOW server_version").Scan(&databaseVersion)
+	_ = e.client.GetConnection().QueryRow(ctx, "SELECT current_database()").Scan(&databaseName)
 
 	tableNames, err := e.getTableNames(ctx, tables)
 	if err != nil {
@@ -48,6 +50,8 @@ func (e *Extractor) ExtractSchema(ctx context.Context, tables []string) (*schema
 	return &schema.Schema{
 		DatabaseType:    "PostgreSQL",
 		DatabaseVersion: databaseVersion,
+		DatabaseName:    databaseName,
+		SchemaName:      e.schema,
 		Tables:          extractedTables,
 	}, nil
 }

@@ -12,7 +12,7 @@
 //
 //	err := llmschema.ExtractAndFormat(
 //		context.Background(),
-//		"postgres://user:pass@localhost/db",
+//		"postgres://user:pass@localhost/db-name",
 //		&llmschema.Options{ExcludeTables: []string{"migrations"}},
 //		&llmschema.OutputOptions{Writer: os.Stdout},
 //	)
@@ -20,9 +20,9 @@
 // # Database Connection URLs
 //
 // Supported URL formats:
-//   - PostgreSQL: postgres://user:pass@host:port/database or postgresql://...
-//   - MySQL: mysql://user:pass@tcp(host:port)/database
-//   - SQLite: sqlite://path/to/database.db
+//   - PostgreSQL: postgres://user:pass@host:port/db-name or postgresql://...
+//   - MySQL: mysql://user:pass@tcp(host:port)/db-name
+//   - SQLite: sqlite://path/to/db-name.db
 //
 // # Output Formats
 //
@@ -108,7 +108,7 @@ type OutputOptions struct {
 	// Takes precedence over Writer if both are set.
 	OutputDir string
 
-	// OmitDatabaseInfo excludes the database type and version from the output.
+	// OmitDatabaseInfo excludes the database type, version, name, and schema from the output.
 	// Database information is included by default.
 	OmitDatabaseInfo bool
 
@@ -144,7 +144,7 @@ type OutputOptions struct {
 //
 //	err := llmschema.ExtractAndFormat(
 //		ctx,
-//		"postgres://user:pass@localhost/db",
+//		"postgres://user:pass@localhost/db-name",
 //		&llmschema.Options{
 //			ExcludeTables: []string{"migrations"},
 //		},
@@ -203,7 +203,7 @@ func ExtractAndFormat(ctx context.Context, databaseURL string, opts *Options, ou
 //
 //	schema, err := llmschema.ExtractSchema(
 //		ctx,
-//		"postgres://user:pass@localhost/db",
+//		"postgres://user:pass@localhost/db-name",
 //		&llmschema.Options{
 //			Tables: []string{"users", "orders"},
 //		},

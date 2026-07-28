@@ -48,6 +48,8 @@ func (e *MySQLExtractor) ExtractSchema(ctx context.Context, tables []string) (*s
 	return &schema.Schema{
 		DatabaseType:    "MySQL",
 		DatabaseVersion: databaseVersion,
+		DatabaseName:    e.schemaName,
+		SchemaName:      e.schemaName,
 		Tables:          extractedTables,
 	}, nil
 }

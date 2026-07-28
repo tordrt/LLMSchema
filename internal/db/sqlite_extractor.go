@@ -47,6 +47,7 @@ func (e *SQLiteExtractor) ExtractSchema(ctx context.Context, tables []string) (*
 	return &schema.Schema{
 		DatabaseType:    "SQLite",
 		DatabaseVersion: databaseVersion,
+		DatabaseName:    e.client.GetDatabaseName(),
 		Tables:          extractedTables,
 	}, nil
 }

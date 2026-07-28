@@ -35,6 +35,12 @@ func TestMySQLExtraction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to extract schema: %v", err)
 	}
+	if s.DatabaseName != "testdb" {
+		t.Errorf("Expected database name testdb, got %q", s.DatabaseName)
+	}
+	if s.SchemaName != "testdb" {
+		t.Errorf("Expected schema name testdb, got %q", s.SchemaName)
+	}
 
 	// Verify tables exist
 	expectedTables := []string{"users", "products", "orders", "order_items", "profiles", "composite_parents", "composite_children", "expression_children", "external_profiles"}

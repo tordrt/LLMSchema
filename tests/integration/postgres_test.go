@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/tordrt/llmschema"
 	"github.com/tordrt/llmschema/internal/db"
 )
 
@@ -34,6 +35,12 @@ func TestPostgresExtraction(t *testing.T) {
 	s, err := extractor.ExtractSchema(ctx, nil)
 	if err != nil {
 		t.Fatalf("Failed to extract schema: %v", err)
+	}
+	if s.DatabaseName != "testdb" {
+		t.Errorf("Expected database name testdb, got %q", s.DatabaseName)
+	}
+	if s.SchemaName != "public" {
+		t.Errorf("Expected schema name public, got %q", s.SchemaName)
 	}
 
 	// Verify tables exist
@@ -99,5 +106,32 @@ func TestPostgresSpecificTables(t *testing.T) {
 
 	if tableMap["products"] || tableMap["order_items"] {
 		t.Error("Should not include products or order_items tables")
+	}
+}
+
+func TestPostgresNonPublicSchema(t *testing.T) {
+	ctx := context.Background()
+
+	connString := os.Getenv("POSTGRES_TEST_URL")
+	if connString == "" {
+		connString = "postgres://testuser:testpassword@localhost:55432/testdb?sslmode=disable"
+	}
+
+	s, err := llmschema.ExtractSchema(ctx, connString, &llmschema.Options{
+		SchemaName: "identity",
+	})
+	if err != nil {
+		t.Fatalf("Failed to extract non-public schema: %v", err)
+	}
+
+	if s.DatabaseName != "testdb" {
+		t.Errorf("Expected database name testdb, got %q", s.DatabaseName)
+	}
+	if s.SchemaName != "identity" {
+		t.Errorf("Expected schema name identity, got %q", s.SchemaName)
+	}
+	verifyTablesExist(t, s, []string{"users"})
+	if len(s.Tables) != 1 {
+		t.Errorf("Expected only the identity schema table, got %d tables", len(s.Tables))
 	}
 }

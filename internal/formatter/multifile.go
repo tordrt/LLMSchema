@@ -213,7 +213,20 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file io.Writer, s *schema.Sch
 				return err
 			}
 		}
-		if _, err := fmt.Fprint(file, "\n\n"); err != nil {
+		if _, err := fmt.Fprint(file, "\n"); err != nil {
+			return err
+		}
+		if s.DatabaseName != "" {
+			if _, err := fmt.Fprintf(file, "**Database name:** %s\n", markdownInlineCode(s.DatabaseName)); err != nil {
+				return err
+			}
+		}
+		if shouldFormatSchemaName(s) {
+			if _, err := fmt.Fprintf(file, "**Schema:** %s\n", markdownInlineCode(s.SchemaName)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(file); err != nil {
 			return err
 		}
 	}

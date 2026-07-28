@@ -23,13 +23,15 @@ func TestFormatIncludesDatabaseInfoByDefault(t *testing.T) {
 	s := &schema.Schema{
 		DatabaseType:    "PostgreSQL",
 		DatabaseVersion: "17.5",
+		DatabaseName:    "app",
+		SchemaName:      "billing",
 	}
 
 	if err := formatter.Format(s); err != nil {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	want := "# Database Schema\n\n**Database:** PostgreSQL 17.5\n\n"
+	want := "# Database Schema\n\n**Database:** PostgreSQL 17.5\n**Database name:** `app`\n**Schema:** `billing`\n\n"
 	if got := output.String(); got != want {
 		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
 	}
@@ -42,6 +44,8 @@ func TestFormatCanOmitDatabaseInfo(t *testing.T) {
 	s := &schema.Schema{
 		DatabaseType:    "PostgreSQL",
 		DatabaseVersion: "17.5",
+		DatabaseName:    "app",
+		SchemaName:      "billing",
 	}
 
 	if err := formatter.Format(s); err != nil {
@@ -51,6 +55,85 @@ func TestFormatCanOmitDatabaseInfo(t *testing.T) {
 	want := "# Database Schema\n\n"
 	if got := output.String(); got != want {
 		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatDoesNotRepeatMySQLDatabaseNameAsSchema(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{
+		DatabaseType: "MySQL",
+		DatabaseName: "app",
+		SchemaName:   "app",
+	}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	want := "# Database Schema\n\n**Database:** MySQL\n**Database name:** `app`\n\n"
+	if got := output.String(); got != want {
+		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatIncludesPostgresSchemaMatchingDatabaseName(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{
+		DatabaseType: "PostgreSQL",
+		DatabaseName: "app",
+		SchemaName:   "app",
+	}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Database name:** `app`\n**Schema:** `app`\n\n"
+	if got := output.String(); got != want {
+		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatEscapesDatabaseIdentityAsInlineCode(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{
+		DatabaseType: "PostgreSQL",
+		DatabaseName: "app`name",
+		SchemaName:   "billing\nadmin",
+	}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Database name:** `` app`name ``\n**Schema:** `billing admin`\n\n"
+	if got := output.String(); got != want {
+		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestMarkdownInlineCode(t *testing.T) {
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "plain", value: "app", want: "`app`"},
+		{name: "backtick", value: "app`name", want: "`` app`name ``"},
+		{name: "line break", value: "app\r\nname", want: "`app name`"},
+		{name: "surrounding spaces", value: " app ", want: "`  app  `"},
+		{name: "only space", value: " ", want: "` `"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := markdownInlineCode(tt.value); got != tt.want {
+				t.Errorf("markdownInlineCode(%q) = %q, want %q", tt.value, got, tt.want)
+			}
+		})
 	}
 }
 

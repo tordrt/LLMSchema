@@ -39,7 +39,20 @@ func (f *MarkdownFormatter) Format(s *schema.Schema) error {
 				return err
 			}
 		}
-		if _, err := fmt.Fprint(f.writer, "\n\n"); err != nil {
+		if _, err := fmt.Fprint(f.writer, "\n"); err != nil {
+			return err
+		}
+		if s.DatabaseName != "" {
+			if _, err := fmt.Fprintf(f.writer, "**Database name:** %s\n", markdownInlineCode(s.DatabaseName)); err != nil {
+				return err
+			}
+		}
+		if shouldFormatSchemaName(s) {
+			if _, err := fmt.Fprintf(f.writer, "**Schema:** %s\n", markdownInlineCode(s.SchemaName)); err != nil {
+				return err
+			}
+		}
+		if _, err := fmt.Fprintln(f.writer); err != nil {
 			return err
 		}
 	}
@@ -56,6 +69,38 @@ func (f *MarkdownFormatter) Format(s *schema.Schema) error {
 		}
 	}
 	return nil
+}
+
+func shouldFormatSchemaName(s *schema.Schema) bool {
+	return s.SchemaName != "" &&
+		!(s.DatabaseType == "MySQL" && s.SchemaName == s.DatabaseName)
+}
+
+func markdownInlineCode(value string) string {
+	normalized := strings.NewReplacer(
+		"\r\n", " ",
+		"\r", " ",
+		"\n", " ",
+	).Replace(value)
+
+	longestRun := 0
+	currentRun := 0
+	for _, r := range normalized {
+		if r == '`' {
+			currentRun++
+			longestRun = max(longestRun, currentRun)
+		} else {
+			currentRun = 0
+		}
+	}
+
+	delimiter := strings.Repeat("`", longestRun+1)
+	if longestRun > 0 ||
+		((strings.HasPrefix(normalized, " ") || strings.HasSuffix(normalized, " ")) &&
+			strings.Trim(normalized, " ") != "") {
+		return delimiter + " " + normalized + " " + delimiter
+	}
+	return delimiter + normalized + delimiter
 }
 
 func (f *MarkdownFormatter) formatTableIndex(tables []schema.Table) error {

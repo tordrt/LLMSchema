@@ -4,6 +4,8 @@ package schema
 type Schema struct {
 	DatabaseType    string
 	DatabaseVersion string
+	DatabaseName    string
+	SchemaName      string
 	Tables          []Table
 }
 

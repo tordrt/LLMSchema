@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	_ "modernc.org/sqlite"
@@ -11,7 +12,8 @@ import (
 
 // SQLiteClient manages the connection to SQLite
 type SQLiteClient struct {
-	db *sql.DB
+	db           *sql.DB
+	databaseName string
 }
 
 // NewSQLiteClient creates a new SQLite client
@@ -33,7 +35,10 @@ func NewSQLiteClient(ctx context.Context, path string) (*SQLiteClient, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return &SQLiteClient{db: db}, nil
+	return &SQLiteClient{
+		db:           db,
+		databaseName: sqliteDatabaseName(path),
+	}, nil
 }
 
 // Close closes the database connection
@@ -44,4 +49,18 @@ func (c *SQLiteClient) Close() error {
 // GetDB returns the underlying database connection
 func (c *SQLiteClient) GetDB() *sql.DB {
 	return c.db
+}
+
+// GetDatabaseName returns a display-safe name for the main SQLite database.
+func (c *SQLiteClient) GetDatabaseName() string {
+	return c.databaseName
+}
+
+func sqliteDatabaseName(path string) string {
+	path, _, _ = strings.Cut(path, "?")
+	path = strings.TrimPrefix(path, "file:")
+	if path == "" {
+		return ""
+	}
+	return filepath.Base(path)
 }

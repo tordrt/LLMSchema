@@ -81,7 +81,7 @@ func TestRootCommandDescribesSingleFileAsDefault(t *testing.T) {
 	if got := cmd.Flags().Lookup("no-table-index").Usage; got != "Exclude the table index from single-file output" {
 		t.Errorf("--no-table-index usage = %q", got)
 	}
-	if got := cmd.Flags().Lookup("no-database-info").Usage; got != "Exclude database type and version from the output" {
+	if got := cmd.Flags().Lookup("no-database-info").Usage; got != "Exclude database type, version, name, and schema from the output" {
 		t.Errorf("--no-database-info usage = %q", got)
 	}
 }

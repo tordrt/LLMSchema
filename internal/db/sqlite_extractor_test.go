@@ -88,6 +88,16 @@ func TestSQLiteExtractorIncludesDatabaseMetadata(t *testing.T) {
 	if s.DatabaseVersion == "" {
 		t.Error("DatabaseVersion is empty")
 	}
+	if s.DatabaseName != ":memory:" {
+		t.Errorf("DatabaseName = %q, want :memory:", s.DatabaseName)
+	}
+}
+
+func TestSQLiteDatabaseNameUsesFilenameWithoutConnectionOptions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "app.db") + "?mode=ro"
+	if got := sqliteDatabaseName(path); got != "app.db" {
+		t.Errorf("sqliteDatabaseName() = %q, want app.db", got)
+	}
 }
 
 func TestSQLiteExtractorHandlesQuotedPragmaNames(t *testing.T) {

@@ -50,6 +50,8 @@ func TestFormatSchemaCanOmitDatabaseInfo(t *testing.T) {
 	s := &schema.Schema{
 		DatabaseType:    "PostgreSQL",
 		DatabaseVersion: "17.5",
+		DatabaseName:    "app",
+		SchemaName:      "billing",
 	}
 
 	var output bytes.Buffer
@@ -59,7 +61,10 @@ func TestFormatSchemaCanOmitDatabaseInfo(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("FormatSchema() without database info failed: %v", err)
 	}
-	if strings.Contains(output.String(), "Database:") || strings.Contains(output.String(), "17.5") {
+	if strings.Contains(output.String(), "Database:") ||
+		strings.Contains(output.String(), "Database name:") ||
+		strings.Contains(output.String(), "Schema:") ||
+		strings.Contains(output.String(), "17.5") {
 		t.Fatalf("output contains omitted database info:\n%s", output.String())
 	}
 }
