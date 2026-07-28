@@ -33,3 +33,13 @@ jobs:
           args: release --clean --parallelism=1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Smoke test release artifacts
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: ./scripts/smoke-release-artifacts.sh dist "${RELEASE_TAG#v}"
+
+      - name: Publish tested release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --repo "$GITHUB_REPOSITORY"
