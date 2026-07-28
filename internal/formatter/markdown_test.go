@@ -193,6 +193,35 @@ func TestFormatRelationsSupportsCompositeKeysAndActions(t *testing.T) {
 	}
 }
 
+func TestSingleFileOmitsReferencedBy(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{Tables: []schema.Table{
+		{Name: "users"},
+		{
+			Name: "orders",
+			Relations: []schema.Relation{{
+				SourceColumn: "user_id",
+				TargetTable:  "users",
+				TargetColumn: "id",
+				Cardinality:  "N:1",
+			}},
+		},
+	}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	got := output.String()
+	if !strings.Contains(got, "user_id → users.id (many orders to one users)") {
+		t.Fatalf("output does not contain outgoing reference:\n%s", got)
+	}
+	if strings.Contains(got, "### Referenced by") {
+		t.Fatalf("single-file output contains redundant incoming references:\n%s", got)
+	}
+}
+
 func TestFormatColumnsEscapesMarkdownTableCells(t *testing.T) {
 	var output bytes.Buffer
 	formatter := NewMarkdownFormatter(&output)

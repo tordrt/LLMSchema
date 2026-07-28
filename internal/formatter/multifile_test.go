@@ -110,6 +110,35 @@ func TestOverviewQualifiesExternalSchemaReferences(t *testing.T) {
 	}
 }
 
+func TestTableFileIncludesReferencedBy(t *testing.T) {
+	outputDir := t.TempDir()
+	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+	s := &schema.Schema{Tables: []schema.Table{
+		{Name: "users"},
+		{
+			Name: "orders",
+			Relations: []schema.Relation{{
+				SourceColumn: "user_id",
+				TargetTable:  "users",
+				TargetColumn: "id",
+				Cardinality:  "N:1",
+			}},
+		},
+	}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "users.md"))
+	if err != nil {
+		t.Fatalf("failed to read users table file: %v", err)
+	}
+	if !strings.Contains(string(content), "### Referenced by\n\n- orders.user_id → id (many orders to one users)") {
+		t.Fatalf("table file does not contain incoming reference:\n%s", content)
+	}
+}
+
 func TestTableFileNameIsPortableAndCollisionSafe(t *testing.T) {
 	formatter := NewMultiFileFormatter("schema", formatMarkdown)
 	tests := []struct {
