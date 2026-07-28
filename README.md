@@ -12,9 +12,11 @@ LLMSchema extracts database schemas from PostgreSQL, MySQL, and SQLite into conc
 
 ## Why?
 
-Most database documentation tools generate output that is too dense or complex for efficient consumption by Large Language Models. LLMSchema focuses on the bare essentials: table structures, column types, indexes, constraints, and relationships.
+AI coding agents need an accurate understanding of your database schema to work effectively on your application. Without dedicated schema documentation, they often have to reconstruct it from application code and migration histories—a slower and less reliable use of context.
 
-By providing a lightweight, structured overview, AI agents can understand your data model without being overwhelmed by irrelevant details.
+LLMSchema extracts the essentials—tables, columns, types, indexes, constraints, and relationships—into concise Markdown. It produces a single portable document by default, with optional per-table files for larger schemas.
+
+This gives AI agents a clear and concise understanding of your data model without overwhelming their context window with irrelevant details.
 
 > **Note:** This tool is intended for development databases to aid AI-assisted coding. Do not rely on it for production-critical documentation.
 
