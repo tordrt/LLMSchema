@@ -305,7 +305,16 @@ outgoing and incoming relationships.
 
 ## Contributing
 
-Contributions are welcome! Feel free to open issues or submit pull requests for new features, database support, or bug fixes.
+Contributions are welcome! Feel free to open issues or submit pull requests for
+new features, database support, or bug fixes.
+
+Some useful areas to explore:
+
+- Views and materialized views across the supported databases
+- PostgreSQL triggers and their associated functions
+- Table and column comments in generated documentation
+
+For larger features, consider opening an issue first.
 
 ## License
 
