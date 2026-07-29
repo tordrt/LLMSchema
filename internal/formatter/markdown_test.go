@@ -77,6 +77,25 @@ func TestFormatDoesNotRepeatMySQLDatabaseNameAsSchema(t *testing.T) {
 	}
 }
 
+func TestFormatOmitsDefaultPostgresSchema(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{
+		DatabaseType: "PostgreSQL",
+		DatabaseName: "app",
+		SchemaName:   "public",
+	}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Database name:** `app`\n\n"
+	if got := output.String(); got != want {
+		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestFormatIncludesPostgresSchemaMatchingDatabaseName(t *testing.T) {
 	var output bytes.Buffer
 	formatter := NewMarkdownFormatter(&output)

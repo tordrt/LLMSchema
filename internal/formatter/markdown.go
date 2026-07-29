@@ -73,6 +73,7 @@ func (f *MarkdownFormatter) Format(s *schema.Schema) error {
 
 func shouldFormatSchemaName(s *schema.Schema) bool {
 	return s.SchemaName != "" &&
+		!(s.DatabaseType == "PostgreSQL" && s.SchemaName == "public") &&
 		!(s.DatabaseType == "MySQL" && s.SchemaName == s.DatabaseName)
 }
 

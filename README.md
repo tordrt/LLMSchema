@@ -213,7 +213,6 @@ columns, indexes, and relationships in one Markdown document:
 
 **Database:** PostgreSQL 17.5
 **Database name:** `mydb`
-**Schema:** `public`
 
 - [orders](#orders)
 - [users](#users)
@@ -267,7 +266,6 @@ tables and load only the table files relevant to its task.
 
 **Database:** PostgreSQL 17.5
 **Database name:** `mydb`
-**Schema:** `public`
 
 Each table has its own documentation file listed below.
 

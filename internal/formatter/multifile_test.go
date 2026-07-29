@@ -49,6 +49,28 @@ func TestMarkdownOverviewIncludesDatabaseInfoByDefault(t *testing.T) {
 	}
 }
 
+func TestMarkdownOverviewOmitsDefaultPostgresSchema(t *testing.T) {
+	outputDir := t.TempDir()
+	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+	s := &schema.Schema{
+		DatabaseType: "PostgreSQL",
+		DatabaseName: "app",
+		SchemaName:   "public",
+	}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "_overview.md"))
+	if err != nil {
+		t.Fatalf("failed to read overview: %v", err)
+	}
+	if strings.Contains(string(content), "**Schema:**") {
+		t.Fatalf("overview contains default PostgreSQL schema:\n%s", content)
+	}
+}
+
 func TestMarkdownOverviewCanOmitDatabaseInfo(t *testing.T) {
 	outputDir := t.TempDir()
 	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
