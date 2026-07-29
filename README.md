@@ -212,7 +212,9 @@ columns, indexes, and relationships in one Markdown document:
 # Database Schema
 
 **Database:** PostgreSQL 17.5
-**Database name:** `mydb`
+**Name:** `mydb`
+
+**Tables:**
 
 - [orders](#orders)
 - [users](#users)
@@ -265,7 +267,7 @@ tables and load only the table files relevant to its task.
 # Schema Overview
 
 **Database:** PostgreSQL 17.5
-**Database name:** `mydb`
+**Name:** `mydb`
 
 Each table has its own documentation file listed below.
 

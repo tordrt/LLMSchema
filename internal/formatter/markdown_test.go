@@ -31,7 +31,7 @@ func TestFormatIncludesDatabaseInfoByDefault(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	want := "# Database Schema\n\n**Database:** PostgreSQL 17.5\n**Database name:** `app`\n**Schema:** `billing`\n\n"
+	want := "# Database Schema\n\n**Database:** PostgreSQL 17.5\n**Name:** `app`\n**Schema:** `billing`\n\n"
 	if got := output.String(); got != want {
 		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
 	}
@@ -71,7 +71,7 @@ func TestFormatDoesNotRepeatMySQLDatabaseNameAsSchema(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	want := "# Database Schema\n\n**Database:** MySQL\n**Database name:** `app`\n\n"
+	want := "# Database Schema\n\n**Database:** MySQL\n**Name:** `app`\n\n"
 	if got := output.String(); got != want {
 		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
 	}
@@ -90,7 +90,7 @@ func TestFormatOmitsDefaultPostgresSchema(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Database name:** `app`\n\n"
+	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Name:** `app`\n\n"
 	if got := output.String(); got != want {
 		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
 	}
@@ -109,7 +109,7 @@ func TestFormatIncludesPostgresSchemaMatchingDatabaseName(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Database name:** `app`\n**Schema:** `app`\n\n"
+	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Name:** `app`\n**Schema:** `app`\n\n"
 	if got := output.String(); got != want {
 		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
 	}
@@ -128,7 +128,7 @@ func TestFormatEscapesDatabaseIdentityAsInlineCode(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Database name:** `` app`name ``\n**Schema:** `billing admin`\n\n"
+	want := "# Database Schema\n\n**Database:** PostgreSQL\n**Name:** `` app`name ``\n**Schema:** `billing admin`\n\n"
 	if got := output.String(); got != want {
 		t.Fatalf("output:\n%s\nwant:\n%s", got, want)
 	}
@@ -171,6 +171,8 @@ func TestFormatIncludesLinkedTableIndexByDefault(t *testing.T) {
 
 	want := `# Database Schema
 
+**Tables:**
+
 - [Order Items](#order-items)
 - [audit.logs](#auditlogs)
 - [users](#users)
@@ -191,7 +193,7 @@ func TestFormatCanOmitTableIndex(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	if got := output.String(); strings.Contains(got, "- [users](#users)") {
+	if got := output.String(); strings.Contains(got, "**Tables:**") || strings.Contains(got, "- [users](#users)") {
 		t.Fatalf("output contains table index:\n%s", got)
 	}
 }

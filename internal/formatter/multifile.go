@@ -217,7 +217,7 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file io.Writer, s *schema.Sch
 			return err
 		}
 		if s.DatabaseName != "" {
-			if _, err := fmt.Fprintf(file, "**Database name:** %s\n", markdownInlineCode(s.DatabaseName)); err != nil {
+			if _, err := fmt.Fprintf(file, "**Name:** %s\n", markdownInlineCode(s.DatabaseName)); err != nil {
 				return err
 			}
 		}

@@ -43,7 +43,7 @@ func (f *MarkdownFormatter) Format(s *schema.Schema) error {
 			return err
 		}
 		if s.DatabaseName != "" {
-			if _, err := fmt.Fprintf(f.writer, "**Database name:** %s\n", markdownInlineCode(s.DatabaseName)); err != nil {
+			if _, err := fmt.Fprintf(f.writer, "**Name:** %s\n", markdownInlineCode(s.DatabaseName)); err != nil {
 				return err
 			}
 		}
@@ -105,6 +105,10 @@ func markdownInlineCode(value string) string {
 }
 
 func (f *MarkdownFormatter) formatTableIndex(tables []schema.Table) error {
+	if _, err := fmt.Fprint(f.writer, "**Tables:**\n\n"); err != nil {
+		return err
+	}
+
 	usedAnchors := make(map[string]bool)
 	reserveMarkdownHeadingAnchor("Database Schema", usedAnchors)
 

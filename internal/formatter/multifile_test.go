@@ -44,7 +44,7 @@ func TestMarkdownOverviewIncludesDatabaseInfoByDefault(t *testing.T) {
 	if !strings.Contains(string(content), "**Database:** PostgreSQL 17.5") {
 		t.Fatalf("overview does not contain database info:\n%s", content)
 	}
-	if !strings.Contains(string(content), "**Database name:** `app`\n**Schema:** `billing`") {
+	if !strings.Contains(string(content), "**Name:** `app`\n**Schema:** `billing`") {
 		t.Fatalf("overview does not contain database identity:\n%s", content)
 	}
 }
@@ -91,7 +91,7 @@ func TestMarkdownOverviewCanOmitDatabaseInfo(t *testing.T) {
 		t.Fatalf("failed to read overview: %v", err)
 	}
 	if strings.Contains(string(content), "Database:") ||
-		strings.Contains(string(content), "Database name:") ||
+		strings.Contains(string(content), "Name:") ||
 		strings.Contains(string(content), "Schema:") ||
 		strings.Contains(string(content), "17.5") {
 		t.Fatalf("overview contains omitted database info:\n%s", content)

@@ -41,7 +41,8 @@ func TestFormatSchemaCanOmitTableIndex(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("FormatSchema() without table index failed: %v", err)
 	}
-	if strings.Contains(outputWithoutIndex.String(), "- [users](#users)") {
+	if strings.Contains(outputWithoutIndex.String(), "**Tables:**") ||
+		strings.Contains(outputWithoutIndex.String(), "- [users](#users)") {
 		t.Fatalf("output contains omitted table index:\n%s", outputWithoutIndex.String())
 	}
 }
@@ -62,7 +63,7 @@ func TestFormatSchemaCanOmitDatabaseInfo(t *testing.T) {
 		t.Fatalf("FormatSchema() without database info failed: %v", err)
 	}
 	if strings.Contains(output.String(), "Database:") ||
-		strings.Contains(output.String(), "Database name:") ||
+		strings.Contains(output.String(), "Name:") ||
 		strings.Contains(output.String(), "Schema:") ||
 		strings.Contains(output.String(), "17.5") {
 		t.Fatalf("output contains omitted database info:\n%s", output.String())
