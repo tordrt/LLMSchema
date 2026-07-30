@@ -369,6 +369,39 @@ func TestFormatIndexesMarksExpressions(t *testing.T) {
 	}
 }
 
+func TestFormatIncludesSingleColumnUniqueIndex(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{Tables: []schema.Table{{
+		Name: "users",
+		Columns: []schema.Column{{
+			Name:     "email",
+			Type:     "text",
+			Nullable: true,
+			IsUnique: true,
+		}},
+		Indexes: []schema.Index{{
+			Name:     "users_email_key",
+			Columns:  []string{"email"},
+			IsUnique: true,
+		}},
+	}}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	for _, want := range []string{
+		"| email | text UNIQUE |",
+		"### Index",
+		"- users_email_key on (email), unique",
+	} {
+		if got := output.String(); !strings.Contains(got, want) {
+			t.Errorf("output missing %q:\n%s", want, got)
+		}
+	}
+}
+
 func TestFormatPreservesExpressionIndexOnUniqueColumn(t *testing.T) {
 	var output bytes.Buffer
 	formatter := NewMarkdownFormatter(&output)

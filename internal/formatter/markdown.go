@@ -125,7 +125,7 @@ func (f *MarkdownFormatter) formatTableIndex(tables []schema.Table) error {
 			}
 		}
 
-		if len(indexesForOutput(table.Indexes, table.Columns)) > 0 {
+		if len(table.Indexes) > 0 {
 			reserveMarkdownHeadingAnchor("Index", usedAnchors)
 		}
 		if len(table.Relations) > 0 {
@@ -186,7 +186,7 @@ func (f *MarkdownFormatter) formatTable(table schema.Table) error {
 	if err := f.FormatColumns(f.writer, table.Columns, table.PrimaryKey, table.Relations); err != nil {
 		return err
 	}
-	if err := f.formatIndexes(f.writer, table.Indexes, table.Columns); err != nil {
+	if err := f.FormatIndexes(f.writer, table.Indexes); err != nil {
 		return err
 	}
 	if err := f.FormatRelations(f.writer, table.Name, table.Relations); err != nil {
@@ -372,14 +372,7 @@ func relationTargetColumns(rel schema.Relation) []string {
 
 // FormatIndexes writes index information
 func (f *MarkdownFormatter) FormatIndexes(w io.Writer, indexes []schema.Index) error {
-	return f.formatIndexes(w, indexes, nil)
-}
-
-// formatIndexes writes index information, optionally filtering out single-column unique indexes
-func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, columns []schema.Column) error {
-	// Filter out single-column unique indexes if the column is already marked as UNIQUE
-	filteredIndexes := indexesForOutput(indexes, columns)
-	if len(filteredIndexes) == 0 {
+	if len(indexes) == 0 {
 		return nil
 	}
 
@@ -389,7 +382,7 @@ func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, c
 	if _, err := fmt.Fprintln(w); err != nil {
 		return err
 	}
-	for _, idx := range filteredIndexes {
+	for _, idx := range indexes {
 		attributes := make([]string, 0, 3)
 		if idx.IsUnique {
 			attributes = append(attributes, "unique")
@@ -416,27 +409,6 @@ func (f *MarkdownFormatter) formatIndexes(w io.Writer, indexes []schema.Index, c
 	}
 	_, err := fmt.Fprintln(w)
 	return err
-}
-
-func indexesForOutput(indexes []schema.Index, columns []schema.Column) []schema.Index {
-	var filteredIndexes []schema.Index
-	for _, idx := range indexes {
-		// Skip single-column unique indexes if column already has IsUnique
-		if idx.IsUnique && !idx.HasExpressions && len(idx.Columns) == 1 && columns != nil {
-			skip := false
-			for _, col := range columns {
-				if col.Name == idx.Columns[0] && col.IsUnique {
-					skip = true
-					break
-				}
-			}
-			if skip {
-				continue
-			}
-		}
-		filteredIndexes = append(filteredIndexes, idx)
-	}
-	return filteredIndexes
 }
 
 // FormatTableConstraints formats constraints for table output (only CHECK constraints now)

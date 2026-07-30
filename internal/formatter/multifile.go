@@ -328,7 +328,7 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 		if err := mdFormatter.FormatColumns(file, table.Columns, table.PrimaryKey, table.Relations); err != nil {
 			return err
 		}
-		if err := mdFormatter.formatIndexes(file, table.Indexes, table.Columns); err != nil {
+		if err := mdFormatter.FormatIndexes(file, table.Indexes); err != nil {
 			return err
 		}
 		if err := mdFormatter.FormatRelations(file, table.Name, table.Relations); err != nil {
