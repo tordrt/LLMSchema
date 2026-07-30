@@ -205,19 +205,33 @@ func main() {
 
 ## Output Format
 
-Single-file output includes the database identity followed by every table, its
-columns, indexes, and relationships in one Markdown document:
+This single-file example was generated from the checked-in PostgreSQL integration
+fixture:
 
 ```markdown
 # Database Schema
 
-**Database:** PostgreSQL 17.5
-**Name:** `mydb`
+**Database:** PostgreSQL 16.14 (Debian 16.14-1.pgdg13+1)
+**Name:** `testdb`
 
 **Tables:**
 
-- [orders](#orders)
 - [users](#users)
+- [orders](#orders)
+
+## users
+
+| Column | Type |
+|--------|------|
+| id | PK integer NOT NULL DEFAULT nextval('users_id_seq'::regclass) |
+| username | varchar(50) NOT NULL UNIQUE |
+| email | varchar(100) NOT NULL |
+| status | user_status (active, inactive, banned) DEFAULT 'active'::user_status |
+| created_at | timestamp DEFAULT CURRENT_TIMESTAMP |
+
+### Index
+
+- users_username_key on (username), unique
 
 ## orders
 
@@ -237,20 +251,6 @@ columns, indexes, and relationships in one Markdown document:
 ### References
 
 - user_id → users.id (many orders to one users; ON DELETE CASCADE)
-
-## users
-
-| Column | Type |
-|--------|------|
-| id | PK integer NOT NULL DEFAULT nextval('users_id_seq'::regclass) |
-| username | varchar(50) NOT NULL UNIQUE |
-| email | varchar(100) NOT NULL |
-| status | user_status (active, inactive, banned) DEFAULT 'active'::user_status |
-| created_at | timestamp DEFAULT CURRENT_TIMESTAMP |
-
-### Index
-
-- users_username_key on (username), unique
 ```
 
 Sections such as `Index` and `References` appear only when the table has that
@@ -282,8 +282,8 @@ tables and load only the table files relevant to its task.
 ```markdown
 # Schema Overview
 
-**Database:** PostgreSQL 17.5
-**Name:** `mydb`
+**Database:** PostgreSQL 16.14 (Debian 16.14-1.pgdg13+1)
+**Name:** `testdb`
 
 Each table has its own documentation file listed below.
 
@@ -318,7 +318,7 @@ outgoing and incoming relationships.
 
 ### References
 
-- user_id → users.id (many orders to one users)
+- user_id → users.id (many orders to one users; ON DELETE CASCADE)
 
 ### Referenced by
 
