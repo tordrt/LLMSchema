@@ -304,8 +304,6 @@ outgoing and incoming relationships.
 ```markdown
 ## orders
 
-**Conventions:** `PK` and `UNIQUE` identify unique keys; their backing indexes are omitted from Additional indexes.
-
 | Column | Type |
 |--------|------|
 | id | PK integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass) |

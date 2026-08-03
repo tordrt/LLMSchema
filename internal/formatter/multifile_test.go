@@ -188,14 +188,12 @@ func TestMarkdownMultiFileExplainsAndFormatsKeys(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
-	for _, name := range []string{"_overview.md", "memberships.md"} {
-		content, err := os.ReadFile(filepath.Join(outputDir, name))
-		if err != nil {
-			t.Fatalf("reading %s failed: %v", name, err)
-		}
-		if !strings.Contains(string(content), schemaConvention) {
-			t.Errorf("%s does not contain the schema convention:\n%s", name, content)
-		}
+	overview, err := os.ReadFile(filepath.Join(outputDir, "_overview.md"))
+	if err != nil {
+		t.Fatalf("reading _overview.md failed: %v", err)
+	}
+	if !strings.Contains(string(overview), schemaConvention) {
+		t.Errorf("overview does not contain the schema convention:\n%s", overview)
 	}
 
 	content, err := os.ReadFile(filepath.Join(outputDir, "memberships.md"))
@@ -203,6 +201,9 @@ func TestMarkdownMultiFileExplainsAndFormatsKeys(t *testing.T) {
 		t.Fatalf("reading memberships.md failed: %v", err)
 	}
 	got := string(content)
+	if strings.Contains(got, schemaConvention) {
+		t.Errorf("table file repeats the schema convention:\n%s", got)
+	}
 	for _, want := range []string{
 		"**Primary key:** (tenant_id, id)",
 		"**Unique keys:**\n\n- (tenant_id, email)",

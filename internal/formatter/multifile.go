@@ -328,9 +328,6 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 		if _, err := fmt.Fprintf(file, "## %s\n\n", table.Name); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(file, "%s\n\n", schemaConvention); err != nil {
-			return err
-		}
 
 		// Use shared formatting methods
 		if err := mdFormatter.FormatColumns(file, table.Columns, table.PrimaryKey, table.Relations); err != nil {
