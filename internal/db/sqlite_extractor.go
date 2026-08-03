@@ -107,7 +107,7 @@ func (e *SQLiteExtractor) extractTable(ctx context.Context, tableName string) (*
 		return nil, fmt.Errorf("failed to extract indexes: %w", err)
 	}
 	table.Indexes = indexes
-	markSingleColumnUnique(table.Columns, indexes)
+	applyUniqueKeys(table)
 
 	// Extract relations after keys and indexes so cardinality can be inferred.
 	relations, err := e.extractRelations(ctx, tableName, pk, indexes)

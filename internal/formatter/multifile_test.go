@@ -171,6 +171,52 @@ func TestTableFileIncludesReferencedBy(t *testing.T) {
 	}
 }
 
+func TestMarkdownMultiFileExplainsAndFormatsKeys(t *testing.T) {
+	outputDir := t.TempDir()
+	formatter := NewMultiFileFormatter(outputDir, formatMarkdown)
+	s := &schema.Schema{Tables: []schema.Table{{
+		Name:       "memberships",
+		PrimaryKey: []string{"tenant_id", "id"},
+		UniqueKeys: [][]string{{"tenant_id", "email"}},
+		Indexes: []schema.Index{
+			{Name: "memberships_tenant_email_key", Columns: []string{"tenant_id", "email"}, IsUnique: true},
+			{Name: "memberships_email_idx", Columns: []string{"email"}},
+		},
+	}}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	for _, name := range []string{"_overview.md", "memberships.md"} {
+		content, err := os.ReadFile(filepath.Join(outputDir, name))
+		if err != nil {
+			t.Fatalf("reading %s failed: %v", name, err)
+		}
+		if !strings.Contains(string(content), schemaConvention) {
+			t.Errorf("%s does not contain the schema convention:\n%s", name, content)
+		}
+	}
+
+	content, err := os.ReadFile(filepath.Join(outputDir, "memberships.md"))
+	if err != nil {
+		t.Fatalf("reading memberships.md failed: %v", err)
+	}
+	got := string(content)
+	for _, want := range []string{
+		"**Primary key:** (tenant_id, id)",
+		"**Unique keys:**\n\n- (tenant_id, email)",
+		"### Additional indexes\n\n- memberships_email_idx on (email)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("table file missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "memberships_tenant_email_key") {
+		t.Errorf("table file repeats the unique key backing index:\n%s", got)
+	}
+}
+
 func TestTableFileNameIsPortableAndCollisionSafe(t *testing.T) {
 	formatter := NewMultiFileFormatter("schema", formatMarkdown)
 	tests := []struct {

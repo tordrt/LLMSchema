@@ -16,6 +16,7 @@ type Table struct {
 	Relations  []Relation
 	Indexes    []Index
 	PrimaryKey []string
+	UniqueKeys [][]string // Composite unique keys; single-column keys use Column.IsUnique
 }
 
 // Column represents a table column

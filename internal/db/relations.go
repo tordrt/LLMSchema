@@ -1,6 +1,10 @@
 package db
 
-import "github.com/tordrt/llmschema/internal/schema"
+import (
+	"slices"
+
+	"github.com/tordrt/llmschema/internal/schema"
+)
 
 func relationCardinality(sourceColumns, primaryKey []string, indexes []schema.Index) string {
 	if columnsContainKey(sourceColumns, primaryKey) {
@@ -46,14 +50,30 @@ func columnsContainKey(columns, key []string) bool {
 	return true
 }
 
-func markSingleColumnUnique(columns []schema.Column, indexes []schema.Index) {
+func applyUniqueKeys(table *schema.Table) {
 	uniqueColumns := make(map[string]struct{})
-	for _, index := range indexes {
-		if index.IsUnique && !index.IsPartial && !index.HasExpressions && len(index.Columns) == 1 {
+	for _, index := range table.Indexes {
+		if !isPlainUniqueKey(index) {
+			continue
+		}
+		if len(index.Columns) == 1 {
 			uniqueColumns[index.Columns[0]] = struct{}{}
+			continue
+		}
+		if !slices.ContainsFunc(table.UniqueKeys, func(key []string) bool {
+			return slices.Equal(key, index.Columns)
+		}) {
+			table.UniqueKeys = append(table.UniqueKeys, append([]string(nil), index.Columns...))
 		}
 	}
-	for i := range columns {
-		_, columns[i].IsUnique = uniqueColumns[columns[i].Name]
+	for i := range table.Columns {
+		_, table.Columns[i].IsUnique = uniqueColumns[table.Columns[i].Name]
 	}
+	slices.SortFunc(table.UniqueKeys, func(a, b []string) int {
+		return slices.Compare(a, b)
+	})
+}
+
+func isPlainUniqueKey(index schema.Index) bool {
+	return index.IsUnique && !index.IsPartial && !index.HasExpressions && len(index.Columns) > 0
 }

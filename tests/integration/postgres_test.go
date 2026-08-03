@@ -67,6 +67,7 @@ func TestPostgresExtraction(t *testing.T) {
 	verifyRelation(t, partitionedProfiles, []string{"user_id"}, []string{"id"}, "1:1")
 	verifyExternalSchemaRelation(t, s, "external_profiles", "identity", "users")
 	verifyExpressionIndexMarked(t, s, "expression_children_user_label")
+	verifyKeyAndIndexMarkdown(t, s)
 }
 
 func TestPostgresSpecificTables(t *testing.T) {

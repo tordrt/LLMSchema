@@ -9,6 +9,8 @@ import (
 	"github.com/tordrt/llmschema/internal/schema"
 )
 
+const schemaConvention = "**Conventions:** `PK` and `UNIQUE` identify unique keys; their backing indexes are omitted from Additional indexes."
+
 // MarkdownFormatter formats schema as markdown
 type MarkdownFormatter struct {
 	writer           io.Writer
@@ -53,6 +55,11 @@ func (f *MarkdownFormatter) Format(s *schema.Schema) error {
 			}
 		}
 		if _, err := fmt.Fprintln(f.writer); err != nil {
+			return err
+		}
+	}
+	if len(s.Tables) > 0 {
+		if _, err := fmt.Fprintf(f.writer, "%s\n\n", schemaConvention); err != nil {
 			return err
 		}
 	}
@@ -125,8 +132,8 @@ func (f *MarkdownFormatter) formatTableIndex(tables []schema.Table) error {
 			}
 		}
 
-		if len(table.Indexes) > 0 {
-			reserveMarkdownHeadingAnchor("Index", usedAnchors)
+		if hasAdditionalIndexes(table.Indexes) {
+			reserveMarkdownHeadingAnchor("Additional indexes", usedAnchors)
 		}
 		if len(table.Relations) > 0 {
 			reserveMarkdownHeadingAnchor("References", usedAnchors)
@@ -186,6 +193,9 @@ func (f *MarkdownFormatter) formatTable(table schema.Table) error {
 	if err := f.FormatColumns(f.writer, table.Columns, table.PrimaryKey, table.Relations); err != nil {
 		return err
 	}
+	if err := f.formatKeyConstraints(f.writer, table.PrimaryKey, table.UniqueKeys); err != nil {
+		return err
+	}
 	if err := f.FormatIndexes(f.writer, table.Indexes); err != nil {
 		return err
 	}
@@ -194,6 +204,32 @@ func (f *MarkdownFormatter) formatTable(table schema.Table) error {
 	}
 
 	return nil
+}
+
+// formatKeyConstraints writes composite primary and unique keys that cannot be
+// represented unambiguously by per-column PK and UNIQUE markers.
+func (f *MarkdownFormatter) formatKeyConstraints(w io.Writer, primaryKey []string, uniqueKeys [][]string) error {
+	if len(primaryKey) > 1 {
+		if _, err := fmt.Fprintf(w, "**Primary key:** %s\n\n", formatSourceColumns(primaryKey)); err != nil {
+			return err
+		}
+	}
+	if len(uniqueKeys) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintln(w, "**Unique keys:**"); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	for _, columns := range uniqueKeys {
+		if _, err := fmt.Fprintf(w, "- %s\n", formatSourceColumns(columns)); err != nil {
+			return err
+		}
+	}
+	_, err := fmt.Fprintln(w)
+	return err
 }
 
 // FormatColumns writes column information as a markdown table
@@ -372,17 +408,20 @@ func relationTargetColumns(rel schema.Relation) []string {
 
 // FormatIndexes writes index information
 func (f *MarkdownFormatter) FormatIndexes(w io.Writer, indexes []schema.Index) error {
-	if len(indexes) == 0 {
+	if !hasAdditionalIndexes(indexes) {
 		return nil
 	}
 
-	if _, err := fmt.Fprintln(w, "### Index"); err != nil {
+	if _, err := fmt.Fprintln(w, "### Additional indexes"); err != nil {
 		return err
 	}
 	if _, err := fmt.Fprintln(w); err != nil {
 		return err
 	}
 	for _, idx := range indexes {
+		if isRepresentedAsUniqueKey(idx) {
+			continue
+		}
 		attributes := make([]string, 0, 3)
 		if idx.IsUnique {
 			attributes = append(attributes, "unique")
@@ -409,6 +448,19 @@ func (f *MarkdownFormatter) FormatIndexes(w io.Writer, indexes []schema.Index) e
 	}
 	_, err := fmt.Fprintln(w)
 	return err
+}
+
+func hasAdditionalIndexes(indexes []schema.Index) bool {
+	for _, index := range indexes {
+		if !isRepresentedAsUniqueKey(index) {
+			return true
+		}
+	}
+	return false
+}
+
+func isRepresentedAsUniqueKey(index schema.Index) bool {
+	return index.IsUnique && !index.IsPartial && !index.HasExpressions && len(index.Columns) > 0
 }
 
 // FormatTableConstraints formats constraints for table output (only CHECK constraints now)

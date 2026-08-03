@@ -64,6 +64,7 @@ func TestMySQLExtraction(t *testing.T) {
 	verifyConstraintExtraction(t, s)
 	verifyExternalSchemaRelation(t, s, "external_profiles", "identity", "users")
 	verifyExpressionIndexMarked(t, s, "expression_children_user_label")
+	verifyKeyAndIndexMarkdown(t, s)
 }
 
 func TestMySQLSpecificTables(t *testing.T) {

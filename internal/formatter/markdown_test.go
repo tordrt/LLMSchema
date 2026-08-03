@@ -171,6 +171,8 @@ func TestFormatIncludesLinkedTableIndexByDefault(t *testing.T) {
 
 	want := `# Database Schema
 
+**Conventions:** ` + "`PK`" + ` and ` + "`UNIQUE`" + ` identify unique keys; their backing indexes are omitted from Additional indexes.
+
 **Tables:**
 
 - [Order Items](#order-items)
@@ -242,7 +244,7 @@ func TestFormatTableIndexAccountsForGeneratedSubheadings(t *testing.T) {
 				TargetColumn: "id",
 			}},
 		},
-		{Name: "Index"},
+		{Name: "Additional indexes"},
 		{Name: "References"},
 	}}
 
@@ -251,7 +253,7 @@ func TestFormatTableIndexAccountsForGeneratedSubheadings(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"- [Index](#index-1)",
+		"- [Additional indexes](#additional-indexes-1)",
 		"- [References](#references-1)",
 	} {
 		if got := output.String(); !strings.Contains(got, want) {
@@ -369,7 +371,7 @@ func TestFormatIndexesMarksExpressions(t *testing.T) {
 	}
 }
 
-func TestFormatIncludesSingleColumnUniqueIndex(t *testing.T) {
+func TestFormatOmitsSingleColumnUniqueKeyIndex(t *testing.T) {
 	var output bytes.Buffer
 	formatter := NewMarkdownFormatter(&output)
 	s := &schema.Schema{Tables: []schema.Table{{
@@ -391,14 +393,51 @@ func TestFormatIncludesSingleColumnUniqueIndex(t *testing.T) {
 		t.Fatalf("Format() failed: %v", err)
 	}
 
+	got := output.String()
+	if !strings.Contains(got, "| email | text UNIQUE |") {
+		t.Errorf("output missing UNIQUE marker:\n%s", got)
+	}
+	if strings.Contains(got, "users_email_key") || strings.Contains(got, "### Additional indexes") {
+		t.Errorf("output repeats the unique key as an additional index:\n%s", got)
+	}
+}
+
+func TestFormatIncludesCompositeKeysAndAdditionalIndexes(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	s := &schema.Schema{Tables: []schema.Table{{
+		Name:       "memberships",
+		PrimaryKey: []string{"tenant_id", "id"},
+		UniqueKeys: [][]string{{"tenant_id", "email"}},
+		Columns: []schema.Column{
+			{Name: "tenant_id", Type: "integer"},
+			{Name: "id", Type: "integer"},
+			{Name: "email", Type: "text"},
+		},
+		Indexes: []schema.Index{
+			{Name: "memberships_tenant_email_key", Columns: []string{"tenant_id", "email"}, IsUnique: true},
+			{Name: "memberships_email_idx", Columns: []string{"email"}},
+			{Name: "memberships_active_email_idx", Columns: []string{"email"}, IsUnique: true, IsPartial: true},
+		},
+	}}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	got := output.String()
 	for _, want := range []string{
-		"| email | text UNIQUE |",
-		"### Index",
-		"- users_email_key on (email), unique",
+		"**Primary key:** (tenant_id, id)",
+		"**Unique keys:**\n\n- (tenant_id, email)",
+		"### Additional indexes\n\n- memberships_email_idx on (email)",
+		"- memberships_active_email_idx on (email), unique, partial",
 	} {
-		if got := output.String(); !strings.Contains(got, want) {
+		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q:\n%s", want, got)
 		}
+	}
+	if strings.Contains(got, "memberships_tenant_email_key") {
+		t.Errorf("output repeats the composite unique key as an additional index:\n%s", got)
 	}
 }
 

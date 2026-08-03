@@ -230,6 +230,11 @@ func (f *MultiFileFormatter) writeMarkdownOverview(file io.Writer, s *schema.Sch
 			return err
 		}
 	}
+	if len(s.Tables) > 0 {
+		if _, err := fmt.Fprintf(file, "%s\n\n", schemaConvention); err != nil {
+			return err
+		}
+	}
 	if _, err := fmt.Fprint(file, "Each table has its own documentation file listed below.\n\n"); err != nil {
 		return err
 	}
@@ -323,9 +328,15 @@ func (f *MultiFileFormatter) writeTableFile(table *schema.Table, s *schema.Schem
 		if _, err := fmt.Fprintf(file, "## %s\n\n", table.Name); err != nil {
 			return err
 		}
+		if _, err := fmt.Fprintf(file, "%s\n\n", schemaConvention); err != nil {
+			return err
+		}
 
 		// Use shared formatting methods
 		if err := mdFormatter.FormatColumns(file, table.Columns, table.PrimaryKey, table.Relations); err != nil {
+			return err
+		}
+		if err := mdFormatter.formatKeyConstraints(file, table.PrimaryKey, table.UniqueKeys); err != nil {
 			return err
 		}
 		if err := mdFormatter.FormatIndexes(file, table.Indexes); err != nil {

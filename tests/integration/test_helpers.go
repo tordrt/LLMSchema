@@ -4,9 +4,12 @@
 package integration
 
 import (
+	"bytes"
 	"slices"
+	"strings"
 	"testing"
 
+	"github.com/tordrt/llmschema/internal/formatter"
 	"github.com/tordrt/llmschema/internal/schema"
 )
 
@@ -50,6 +53,11 @@ func verifyConstraintExtraction(t *testing.T, s *schema.Schema) {
 			}
 		}
 	}
+	if !slices.ContainsFunc(orderItems.UniqueKeys, func(columns []string) bool {
+		return slices.Equal(columns, []string{"order_id", "product_id"})
+	}) {
+		t.Errorf("order_items unique keys = %v, want (order_id, product_id)", orderItems.UniqueKeys)
+	}
 
 	composite := findTable(s, "composite_children")
 	if composite == nil {
@@ -65,6 +73,46 @@ func verifyConstraintExtraction(t *testing.T, s *schema.Schema) {
 	for _, column := range expression.Columns {
 		if column.Name == "user_id" && column.IsUnique {
 			t.Error("column from unique expression index marked individually unique")
+		}
+	}
+}
+
+func verifyKeyAndIndexMarkdown(t *testing.T, s *schema.Schema) {
+	t.Helper()
+
+	var output bytes.Buffer
+	if err := formatter.NewMarkdownFormatter(&output).Format(s); err != nil {
+		t.Fatalf("formatting extracted schema failed: %v", err)
+	}
+	got := output.String()
+	usernameIsUnique := false
+	for _, line := range strings.Split(got, "\n") {
+		if strings.HasPrefix(line, "| username |") && strings.Contains(line, " UNIQUE |") {
+			usernameIsUnique = true
+			break
+		}
+	}
+	if !usernameIsUnique {
+		t.Errorf("formatted username column is not marked UNIQUE:\n%s", got)
+	}
+	for _, want := range []string{
+		"**Conventions:** `PK` and `UNIQUE` identify unique keys; their backing indexes are omitted from Additional indexes.",
+		"**Primary key:** (tenant_id, id)",
+		"**Unique keys:**\n\n- (order_id, product_id)",
+		"### Additional indexes",
+		"- idx_category on (category)",
+		"- expression_children_user_label on (user_id, `<expression>`), unique, contains expressions",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("formatted schema missing %q:\n%s", want, got)
+		}
+	}
+	for _, unwanted := range []string{
+		" on (username), unique",
+		" on (order_id, product_id), unique",
+	} {
+		if strings.Contains(got, unwanted) {
+			t.Errorf("formatted schema repeats a unique key as an additional index (%q):\n%s", unwanted, got)
 		}
 	}
 }

@@ -261,6 +261,11 @@ func TestSQLiteExtractorPreservesConstraintsAndCardinality(t *testing.T) {
 	if columnNamed(t, ratings.Columns, "parent_id").IsUnique || columnNamed(t, ratings.Columns, "rater_id").IsUnique {
 		t.Error("members of a composite UNIQUE constraint were marked individually unique")
 	}
+	if !slices.ContainsFunc(ratings.UniqueKeys, func(columns []string) bool {
+		return slices.Equal(columns, []string{"parent_id", "rater_id"})
+	}) {
+		t.Errorf("ratings unique keys = %v, want (parent_id, rater_id)", ratings.UniqueKeys)
+	}
 
 	composite := tableNamed(t, extracted.Tables, "composite_children")
 	assertRelation(t, composite.Relations, []string{"parent_a", "parent_b"}, []string{"a", "b"}, "N:1")

@@ -15,12 +15,7 @@ import (
 
 func TestSQLiteExtraction(t *testing.T) {
 	ctx := context.Background()
-
-	// Use environment variable if set, otherwise use default test database
-	dbPath := os.Getenv("SQLITE_TEST_PATH")
-	if dbPath == "" {
-		dbPath = "../../test.db"
-	}
+	dbPath := sqliteTestPath(t)
 
 	// Create client
 	client, err := db.NewSQLiteClient(ctx, dbPath)
@@ -63,15 +58,12 @@ func TestSQLiteExtraction(t *testing.T) {
 
 	// Verify indexes
 	verifyIndex(t, s, "products", "idx_category", []string{"category"})
+	verifyKeyAndIndexMarkdown(t, s)
 }
 
 func TestSQLiteSpecificTables(t *testing.T) {
 	ctx := context.Background()
-
-	dbPath := os.Getenv("SQLITE_TEST_PATH")
-	if dbPath == "" {
-		dbPath = "../../test.db"
-	}
+	dbPath := sqliteTestPath(t)
 
 	client, err := db.NewSQLiteClient(ctx, dbPath)
 	if err != nil {
@@ -103,6 +95,31 @@ func TestSQLiteSpecificTables(t *testing.T) {
 	if tableMap["orders"] || tableMap["order_items"] {
 		t.Error("Should not include orders or order_items tables")
 	}
+}
+
+func sqliteTestPath(t *testing.T) string {
+	t.Helper()
+	if path := os.Getenv("SQLITE_TEST_PATH"); path != "" {
+		return path
+	}
+
+	sqlBytes, err := os.ReadFile("../../test_sqlite_schema.sql")
+	if err != nil {
+		t.Fatalf("Failed to read SQLite test schema: %v", err)
+	}
+	dbPath := filepath.Join(t.TempDir(), "test.db")
+	client, err := db.NewSQLiteClient(context.Background(), dbPath)
+	if err != nil {
+		t.Fatalf("Failed to create SQLite test database: %v", err)
+	}
+	if _, err := client.GetDB().ExecContext(context.Background(), string(sqlBytes)); err != nil {
+		_ = client.Close()
+		t.Fatalf("Failed to apply SQLite test schema: %v", err)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("Failed to close SQLite test database: %v", err)
+	}
+	return dbPath
 }
 
 func TestSQLiteQuotedIdentifiersThroughPublicAPI(t *testing.T) {

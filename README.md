@@ -214,6 +214,8 @@ fixture:
 **Database:** PostgreSQL 16.14 (Debian 16.14-1.pgdg13+1)
 **Name:** `testdb`
 
+**Conventions:** `PK` and `UNIQUE` identify unique keys; their backing indexes are omitted from Additional indexes.
+
 **Tables:**
 
 - [users](#users)
@@ -229,10 +231,6 @@ fixture:
 | status | user_status (active, inactive, banned) DEFAULT 'active'::user_status |
 | created_at | timestamp DEFAULT CURRENT_TIMESTAMP |
 
-### Index
-
-- users_username_key on (username), unique
-
 ## orders
 
 | Column | Type |
@@ -243,7 +241,7 @@ fixture:
 | order_date | timestamp DEFAULT CURRENT_TIMESTAMP |
 | status | order_status (pending, processing, shipped, delivered, cancelled) DEFAULT 'pending'::order_status |
 
-### Index
+### Additional indexes
 
 - idx_status on (status)
 - idx_user_date on (user_id, order_date)
@@ -253,9 +251,10 @@ fixture:
 - user_id → users.id (many orders to one users; ON DELETE CASCADE)
 ```
 
-Sections such as `Index` and `References` appear only when the table has that
-metadata. The `Index` section lists every extracted index, including indexes
-that back `UNIQUE` column constraints.
+Sections such as `Additional indexes` and `References` appear only when the
+table has that metadata. Primary and unique keys are represented by `PK`,
+`UNIQUE`, and explicit composite-key lines, so their backing indexes are not
+repeated under `Additional indexes`.
 
 For schemas with many tables, or tables that are individually complex,
 `--output-dir docs/db-schema` instead creates an overview plus one Markdown
@@ -285,6 +284,8 @@ tables and load only the table files relevant to its task.
 **Database:** PostgreSQL 16.14 (Debian 16.14-1.pgdg13+1)
 **Name:** `testdb`
 
+**Conventions:** `PK` and `UNIQUE` identify unique keys; their backing indexes are omitted from Additional indexes.
+
 Each table has its own documentation file listed below.
 
 ## Tables
@@ -303,6 +304,8 @@ outgoing and incoming relationships.
 ```markdown
 ## orders
 
+**Conventions:** `PK` and `UNIQUE` identify unique keys; their backing indexes are omitted from Additional indexes.
+
 | Column | Type |
 |--------|------|
 | id | PK integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass) |
@@ -311,7 +314,7 @@ outgoing and incoming relationships.
 | order_date | timestamp DEFAULT CURRENT_TIMESTAMP |
 | status | order_status (pending, processing, shipped, delivered, cancelled) DEFAULT 'pending'::order_status |
 
-### Index
+### Additional indexes
 
 - idx_status on (status)
 - idx_user_date on (user_id, order_date)
