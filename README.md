@@ -26,8 +26,14 @@ This gives AI agents a clear and concise understanding of your data model withou
 
 **With Go installed:**
 ```bash
+# Run the latest or a pinned version directly
+go run github.com/tordrt/llmschema/cmd/llmschema@latest --version
+
+# Or install the CLI
 go install github.com/tordrt/llmschema/cmd/llmschema@latest
 ```
+
+For reproducible automation, replace `@latest` with a version such as `@v1.4.1`.
 
 **Quick install (macOS/Linux):**
 ```bash
@@ -129,7 +135,7 @@ migrate:
 	$(MAKE) schema
 
 schema:
-	llmschema -o schema.md
+	go run github.com/tordrt/llmschema/cmd/llmschema@latest -o schema.md
 ```
 
 ### Command Line Flags
