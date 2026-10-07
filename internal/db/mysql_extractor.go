@@ -69,11 +69,11 @@ func (e *MySQLExtractor) getTableNames(ctx context.Context, requestedTables []st
 		SELECT table_name
 		FROM information_schema.tables
 		WHERE table_schema = ?
-			AND (table_type = 'BASE TABLE' OR (? AND table_type = 'VIEW'))
+			AND (table_type = 'BASE TABLE' OR ?)
 		ORDER BY table_name
 	`
 
-	// Views can be requested by name but are not included by default.
+	// Views and system-versioned tables can be requested by name but are not included by default.
 	rows, err := e.client.GetDB().QueryContext(ctx, query, e.schemaName, len(requestedTables) > 0)
 	if err != nil {
 		return nil, err

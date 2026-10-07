@@ -263,7 +263,8 @@ table has that metadata. Primary and unique keys are represented by `PK`,
 `UNIQUE`, and explicit composite-key lines, so their backing indexes are not
 repeated under `Additional indexes`. Columns the database fills itself are
 marked with `AUTO_INCREMENT`, `GENERATED ... AS IDENTITY`, or
-`GENERATED ALWAYS AS (expression)`.
+`GENERATED ALWAYS AS (expression)`; SQLite generated columns show `GENERATED`
+without the expression.
 
 For schemas with many tables, or tables that are individually complex,
 `--output-dir docs/db-schema` instead creates an overview plus one Markdown

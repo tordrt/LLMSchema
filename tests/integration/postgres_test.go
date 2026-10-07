@@ -153,9 +153,7 @@ func TestPostgresNonPublicSchema(t *testing.T) {
 	if s.SchemaName != "identity" {
 		t.Errorf("Expected schema name identity, got %q", s.SchemaName)
 	}
-	if len(s.Tables) != 1 || findTable(s, "users") == nil {
-		t.Errorf("Expected only users table, got %d tables", len(s.Tables))
-	}
+	verifyTablesExist(t, s, []string{"users"})
 	if len(s.Tables) != 1 {
 		t.Errorf("Expected only the identity schema table, got %d tables", len(s.Tables))
 	}
