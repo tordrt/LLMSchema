@@ -1,6 +1,7 @@
 -- Test schema for SQLite
 
 -- Drop tables if they exist
+DROP TABLE IF EXISTS generated_values;
 DROP TABLE IF EXISTS expression_children;
 DROP TABLE IF EXISTS implicit_composite_children;
 DROP TABLE IF EXISTS reverse_key_parents;
@@ -120,3 +121,11 @@ INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES
     (1, 1, 1, 999.99),
     (2, 2, 1, 19.99),
     (2, 3, 1, 12.99);
+
+-- Generated columns are filled by the database
+CREATE TABLE generated_values (
+    id INTEGER PRIMARY KEY,
+    quantity INTEGER NOT NULL,
+    doubled INTEGER GENERATED ALWAYS AS (quantity * 2) STORED,
+    tripled INTEGER AS (quantity * 3) VIRTUAL
+);

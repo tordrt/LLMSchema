@@ -34,8 +34,13 @@ func TestSQLiteExtraction(t *testing.T) {
 	}
 
 	// Verify tables exist
-	expectedTables := []string{"users", "products", "orders", "order_items", "profiles", "composite_parents", "composite_children", "reverse_key_parents", "implicit_composite_children", "expression_children"}
+	expectedTables := []string{"users", "products", "orders", "order_items", "profiles", "composite_parents", "composite_children", "reverse_key_parents", "implicit_composite_children", "expression_children", "generated_values"}
 	verifyTablesExist(t, s, expectedTables)
+	verifyColumnGenerated(t, s, "generated_values", map[string]string{
+		"quantity": "",
+		"doubled":  "GENERATED",
+		"tripled":  "GENERATED",
+	})
 
 	// Verify users table structure
 	table := findTable(s, "users")

@@ -75,11 +75,12 @@ stdout. An explicit `--db-url` takes precedence over `DATABASE_URL`.
 | Database | Format |
 |----------|--------|
 | **PostgreSQL** | `postgres://username:password@host:port/db-name` |
-| **MySQL** | `mysql://username:password@tcp(host:port)/db-name` |
+| **MySQL** | `mysql://username:password@host:port/db-name` |
 | **SQLite** | `sqlite://path/to/db-name.db` |
 
 Replace `db-name` with the name of the database you want to document. For
-SQLite, use the path to that database's file.
+SQLite, use the path to that database's file. MySQL also accepts the Go driver
+form, `mysql://username:password@tcp(host:port)/db-name`.
 
 ### Common Examples
 
@@ -260,7 +261,9 @@ fixture:
 Sections such as `Additional indexes` and `References` appear only when the
 table has that metadata. Primary and unique keys are represented by `PK`,
 `UNIQUE`, and explicit composite-key lines, so their backing indexes are not
-repeated under `Additional indexes`.
+repeated under `Additional indexes`. Columns the database fills itself are
+marked with `AUTO_INCREMENT`, `GENERATED ... AS IDENTITY`, or
+`GENERATED ALWAYS AS (expression)`.
 
 For schemas with many tables, or tables that are individually complex,
 `--output-dir docs/db-schema` instead creates an overview plus one Markdown

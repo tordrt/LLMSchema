@@ -4,6 +4,7 @@ USE testdb;
 
 -- Drop tables if they exist
 DROP VIEW IF EXISTS active_users;
+DROP TABLE IF EXISTS generated_values;
 DROP TABLE IF EXISTS external_profiles;
 DROP TABLE IF EXISTS expression_children;
 DROP TABLE IF EXISTS order_items;
@@ -117,3 +118,11 @@ INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES
     (1, 1, 1, 999.99),
     (2, 2, 1, 19.99),
     (2, 3, 1, 12.99);
+
+-- Auto-increment and generated columns are filled by the database
+CREATE TABLE generated_values (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    quantity INT NOT NULL,
+    doubled INT GENERATED ALWAYS AS (quantity * 2) STORED,
+    tripled INT AS (quantity * 3) VIRTUAL
+);

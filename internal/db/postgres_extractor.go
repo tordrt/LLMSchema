@@ -34,6 +34,14 @@ func (e *Extractor) ExtractSchema(ctx context.Context, tables []string) (*schema
 	_ = e.client.GetConnection().QueryRow(ctx, "SHOW server_version").Scan(&databaseVersion)
 	_ = e.client.GetConnection().QueryRow(ctx, "SELECT current_database()").Scan(&databaseName)
 
+	var schemaExists bool
+	if err := e.client.GetConnection().QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = $1)", e.schema).Scan(&schemaExists); err != nil {
+		return nil, fmt.Errorf("failed to check schema %q: %w", e.schema, err)
+	}
+	if !schemaExists {
+		return nil, fmt.Errorf("schema %q not found", e.schema)
+	}
+
 	tableNames, err := e.getTableNames(ctx, tables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get table names: %w", err)
@@ -198,7 +206,11 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 			c.udt_name,
 			c.character_maximum_length,
 			c.numeric_precision,
-			c.numeric_scale
+			c.numeric_scale,
+			c.is_identity,
+			c.identity_generation,
+			c.is_generated,
+			c.generation_expression
 		FROM information_schema.columns c
 		WHERE table_schema = $1 AND table_name = $2
 		ORDER BY ordinal_position
@@ -223,13 +235,20 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 		var charMaxLength *int
 		var numericPrecision *int
 		var numericScale *int
+		var isIdentity, isGenerated string
+		var identityGeneration, generationExpression *string
 
-		if err := rows.Scan(&col.Name, &dataType, &nullable, &defaultVal, &udtName, &charMaxLength, &numericPrecision, &numericScale); err != nil {
+		if err := rows.Scan(&col.Name, &dataType, &nullable, &defaultVal, &udtName, &charMaxLength, &numericPrecision, &numericScale, &isIdentity, &identityGeneration, &isGenerated, &generationExpression); err != nil {
 			return nil, err
 		}
 
 		col.Nullable = (nullable == "YES")
 		col.DefaultValue = defaultVal
+		if isIdentity == "YES" && identityGeneration != nil {
+			col.Generated = fmt.Sprintf("GENERATED %s AS IDENTITY", *identityGeneration)
+		} else if isGenerated == "ALWAYS" && generationExpression != nil {
+			col.Generated = generatedAs(*generationExpression)
+		}
 
 		// Use SQL standard type names, but apply PostgreSQL-specific shortcuts for verbose types
 		col.Type = normalizePostgresType(dataType, udtName, charMaxLength, numericPrecision, numericScale)

@@ -328,6 +328,10 @@ func buildTypeString(col schema.Column, primaryKey []string) string {
 		parts = append(parts, fmt.Sprintf("DEFAULT %s", *col.DefaultValue))
 	}
 
+	if col.Generated != "" {
+		parts = append(parts, col.Generated)
+	}
+
 	// Add UNIQUE if applicable and not PK
 	if col.IsUnique && !isPK {
 		parts = append(parts, "UNIQUE")

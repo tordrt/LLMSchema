@@ -32,6 +32,14 @@ func (e *MySQLExtractor) ExtractSchema(ctx context.Context, tables []string) (*s
 	// support this query even when schema extraction itself works.
 	_ = e.client.GetDB().QueryRowContext(ctx, "SELECT VERSION()").Scan(&databaseVersion)
 
+	var schemaExists bool
+	if err := e.client.GetDB().QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = ?)", e.schemaName).Scan(&schemaExists); err != nil {
+		return nil, fmt.Errorf("failed to check schema %q: %w", e.schemaName, err)
+	}
+	if !schemaExists {
+		return nil, fmt.Errorf("schema %q not found", e.schemaName)
+	}
+
 	tableNames, err := e.getTableNames(ctx, tables)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get table names: %w", err)
@@ -131,7 +139,9 @@ func (e *MySQLExtractor) extractColumns(ctx context.Context, tableName string) (
 			c.column_type,
 			c.is_nullable,
 			c.column_default,
-			c.data_type
+			c.data_type,
+			c.extra,
+			c.generation_expression
 		FROM information_schema.columns c
 		WHERE c.table_schema = ? AND c.table_name = ?
 		ORDER BY c.ordinal_position
@@ -152,8 +162,10 @@ func (e *MySQLExtractor) extractColumns(ctx context.Context, tableName string) (
 		var nullable string
 		var defaultVal sql.NullString
 		var dataType string
+		var extra string
+		var generationExpression sql.NullString
 
-		if err := rows.Scan(&col.Name, &columnType, &nullable, &defaultVal, &dataType); err != nil {
+		if err := rows.Scan(&col.Name, &columnType, &nullable, &defaultVal, &dataType, &extra, &generationExpression); err != nil {
 			return nil, err
 		}
 
@@ -161,6 +173,12 @@ func (e *MySQLExtractor) extractColumns(ctx context.Context, tableName string) (
 		col.Nullable = (nullable == "YES")
 		if defaultVal.Valid {
 			col.DefaultValue = &defaultVal.String
+		}
+		extra = strings.ToUpper(extra)
+		if strings.Contains(extra, "AUTO_INCREMENT") {
+			col.Generated = "AUTO_INCREMENT"
+		} else if (strings.Contains(extra, "STORED GENERATED") || strings.Contains(extra, "VIRTUAL GENERATED")) && generationExpression.Valid {
+			col.Generated = generatedAs(generationExpression.String)
 		}
 
 		// Check if this is an ENUM column

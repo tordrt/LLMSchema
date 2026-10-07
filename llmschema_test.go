@@ -26,7 +26,7 @@ func TestExtractSchema(t *testing.T) {
 			name:       "SQLite all tables",
 			url:        "sqlite://test.db",
 			opts:       nil,
-			wantTables: []string{"users", "products", "orders", "order_items", "profiles", "composite_parents", "composite_children", "reverse_key_parents", "implicit_composite_children", "expression_children"},
+			wantTables: []string{"users", "products", "orders", "order_items", "profiles", "composite_parents", "composite_children", "reverse_key_parents", "implicit_composite_children", "expression_children", "generated_values"},
 			wantErr:    false,
 		},
 		{
@@ -96,8 +96,8 @@ func TestExtractSchemaWithExclusion(t *testing.T) {
 
 	// Note: ExtractSchema doesn't apply exclusions, only ExtractAndFormat does
 	// So we test that exclusions are ignored here
-	if len(schema.Tables) != 10 {
-		t.Errorf("Expected 10 tables (exclusions not applied in ExtractSchema), got %d", len(schema.Tables))
+	if len(schema.Tables) != 11 {
+		t.Errorf("Expected 11 tables (exclusions not applied in ExtractSchema), got %d", len(schema.Tables))
 	}
 }
 

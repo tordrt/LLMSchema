@@ -516,3 +516,32 @@ func TestMarkdownFormattingMethodsPropagateWriteErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatShowsGeneratedColumns(t *testing.T) {
+	var output bytes.Buffer
+	formatter := NewMarkdownFormatter(&output)
+	formatter.OmitDatabaseInfo = true
+	formatter.OmitTableIndex = true
+	s := &schema.Schema{Tables: []schema.Table{{
+		Name:       "accounts",
+		PrimaryKey: []string{"id"},
+		Columns: []schema.Column{
+			{Name: "id", Type: "bigint", Generated: "GENERATED ALWAYS AS IDENTITY"},
+			{Name: "first", Type: "text", Nullable: true},
+			{Name: "label", Type: "text", Nullable: true, Generated: "GENERATED ALWAYS AS (first || '!')"},
+		},
+	}}}
+
+	if err := formatter.Format(s); err != nil {
+		t.Fatalf("Format() failed: %v", err)
+	}
+
+	for _, want := range []string{
+		"| id | PK bigint NOT NULL GENERATED ALWAYS AS IDENTITY |\n",
+		`| label | text GENERATED ALWAYS AS (first \|\| '!') |` + "\n",
+	} {
+		if !strings.Contains(output.String(), want) {
+			t.Errorf("output missing %q:\n%s", want, output.String())
+		}
+	}
+}

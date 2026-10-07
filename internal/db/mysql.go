@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/go-sql-driver/mysql"
 )
@@ -51,4 +53,35 @@ func ParseDatabaseName(connString string) (string, error) {
 	}
 
 	return cfg.DBName, nil
+}
+
+// MySQLDSN converts a mysql:// URL into a Go MySQL driver DSN. It accepts both
+// mysql://user:pass@host:3306/db and the driver form mysql://user:pass@tcp(host:3306)/db.
+func MySQLDSN(databaseURL string) string {
+	dsn := strings.TrimPrefix(databaseURL, "mysql://")
+	if _, err := mysql.ParseDSN(dsn); err == nil {
+		return dsn
+	}
+
+	u, err := url.Parse(databaseURL)
+	if err != nil || u.Host == "" {
+		// Let the driver report its own error for the original string.
+		return dsn
+	}
+
+	cfg := mysql.NewConfig()
+	cfg.User = u.User.Username()
+	cfg.Passwd, _ = u.User.Password()
+	cfg.Net = "tcp"
+	cfg.Addr = u.Host
+	cfg.DBName = strings.TrimPrefix(u.Path, "/")
+	dsn = cfg.FormatDSN()
+	if u.RawQuery != "" {
+		separator := "?"
+		if strings.Contains(dsn, "?") {
+			separator = "&"
+		}
+		dsn += separator + u.RawQuery
+	}
+	return dsn
 }

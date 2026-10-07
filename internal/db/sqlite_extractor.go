@@ -121,7 +121,8 @@ func (e *SQLiteExtractor) extractTable(ctx context.Context, tableName string) (*
 
 // extractColumns extracts column information for a table
 func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) ([]schema.Column, error) {
-	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_table_info(?)", tableName)
+	// table_xinfo also lists generated columns, which table_info omits.
+	rows, err := e.client.GetDB().QueryContext(ctx, "SELECT * FROM pragma_table_xinfo(?)", tableName)
 	if err != nil {
 		return nil, err
 	}
@@ -131,11 +132,15 @@ func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) 
 	for rows.Next() {
 		var cid int
 		var name, colType string
-		var notNull, pk int
+		var notNull, pk, hidden int
 		var defaultValue sql.NullString
 
-		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk); err != nil {
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk, &hidden); err != nil {
 			return nil, err
+		}
+		// hidden is 1 for virtual table internals, 2 or 3 for generated columns.
+		if hidden == 1 {
+			continue
 		}
 
 		col := schema.Column{
@@ -146,6 +151,9 @@ func (e *SQLiteExtractor) extractColumns(ctx context.Context, tableName string) 
 
 		if defaultValue.Valid {
 			col.DefaultValue = &defaultValue.String
+		}
+		if hidden == 2 || hidden == 3 {
+			col.Generated = "GENERATED"
 		}
 
 		columns = append(columns, col)

@@ -28,6 +28,7 @@ type Column struct {
 	IsUnique        bool
 	EnumValues      []string // For USER-DEFINED enum types
 	CheckConstraint *string  // For CHECK constraints
+	Generated       string   // How the database fills the value, e.g. AUTO_INCREMENT or GENERATED ALWAYS AS IDENTITY
 }
 
 // Relation represents a foreign key relationship

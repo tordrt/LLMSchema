@@ -21,7 +21,7 @@
 //
 // Supported URL formats:
 //   - PostgreSQL: postgres://user:pass@host:port/db-name or postgresql://...
-//   - MySQL: mysql://user:pass@tcp(host:port)/db-name
+//   - MySQL: mysql://user:pass@host:port/db-name or mysql://user:pass@tcp(host:port)/db-name
 //   - SQLite: sqlite://path/to/db-name.db
 //
 // # Output Formats
@@ -302,9 +302,7 @@ func parseDatabaseURL(url string) (dbType, connectionStr string, err error) {
 	}
 
 	if strings.HasPrefix(url, "mysql://") {
-		// Strip mysql:// prefix for the Go MySQL driver
-		connectionStr := strings.TrimPrefix(url, "mysql://")
-		return "mysql", connectionStr, nil
+		return "mysql", db.MySQLDSN(url), nil
 	}
 
 	if strings.HasPrefix(url, "sqlite://") {

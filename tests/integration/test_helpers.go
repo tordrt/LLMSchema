@@ -325,6 +325,38 @@ func verifyUnknownTableRejected(t *testing.T, err error) {
 	}
 }
 
+// verifyColumnGenerated checks how the database fills a column
+func verifyColumnGenerated(t *testing.T, s *schema.Schema, tableName string, expected map[string]string) {
+	t.Helper()
+
+	table := findTable(s, tableName)
+	if table == nil {
+		t.Fatalf("Table %s not found", tableName)
+	}
+	for _, col := range table.Columns {
+		want, ok := expected[col.Name]
+		if !ok {
+			continue
+		}
+		if col.Generated != want {
+			t.Errorf("Expected %s.%s generated %q, got %q", tableName, col.Name, want, col.Generated)
+		}
+		delete(expected, col.Name)
+	}
+	for name := range expected {
+		t.Errorf("Column %s not found in table %s", name, tableName)
+	}
+}
+
+// verifyUnknownSchemaRejected checks the error from extracting no_such_schema
+func verifyUnknownSchemaRejected(t *testing.T, err error) {
+	t.Helper()
+
+	if err == nil || !strings.Contains(err.Error(), `schema "no_such_schema" not found`) {
+		t.Errorf("Expected unknown schema error, got %v", err)
+	}
+}
+
 // findTable is a helper function to find a table by name in the schema
 func findTable(s *schema.Schema, tableName string) *schema.Table {
 	for i := range s.Tables {
