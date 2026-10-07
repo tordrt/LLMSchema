@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -12,7 +13,7 @@ import (
 
 func TestSQLiteClientWaitsForTransientLocks(t *testing.T) {
 	ctx := context.Background()
-	path := filepath.Join(t.TempDir(), "locked.db")
+	path := emptySQLiteFile(t, "locked.db")
 
 	locker, err := NewSQLiteClient(ctx, path)
 	if err != nil {
@@ -107,7 +108,7 @@ func TestSQLiteExtractorHandlesQuotedPragmaNames(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	client, err := NewSQLiteClient(ctx, filepath.Join(t.TempDir(), "quoted-names.db"))
+	client, err := NewSQLiteClient(ctx, emptySQLiteFile(t, "quoted-names.db"))
 	if err != nil {
 		t.Fatalf("NewSQLiteClient() failed: %v", err)
 	}
@@ -373,13 +374,84 @@ func TestSelectRequestedTables(t *testing.T) {
 		t.Fatalf("selectRequestedTables(all, nil) = %v, %v; want all tables", got, err)
 	}
 
-	got, err = selectRequestedTables(allTables, []string{"users", "orders"})
+	got, err = selectRequestedTables(allTables, []string{"users", "orders", "users"})
 	if err != nil || !slices.Equal(got, []string{"users", "orders"}) {
-		t.Fatalf("selectRequestedTables(all, users,orders) = %v, %v; want requested order", got, err)
+		t.Fatalf("selectRequestedTables(all, users,orders,users) = %v, %v; want requested order without duplicates", got, err)
+	}
+
+	got, err = selectRequestedTables([]string{"Users", "orders"}, []string{"users", "ORDERS"})
+	if err != nil || !slices.Equal(got, []string{"Users", "orders"}) {
+		t.Fatalf("selectRequestedTables() = %v, %v; want case-insensitive matches", got, err)
+	}
+
+	_, err = selectRequestedTables([]string{"Users", "users"}, []string{"USERS"})
+	if err == nil {
+		t.Fatal("selectRequestedTables() accepted an ambiguous case-insensitive match")
 	}
 
 	_, err = selectRequestedTables(allTables, []string{"users", "nope", "missing"})
 	if err == nil || err.Error() != "table(s) not found: nope, missing" {
 		t.Fatalf("selectRequestedTables() error = %v, want unknown tables listed", err)
+	}
+}
+
+// emptySQLiteFile creates an empty file, which SQLite opens as an empty database.
+func emptySQLiteFile(t *testing.T, name string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), name)
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatalf("creating SQLite file failed: %v", err)
+	}
+	return path
+}
+
+func TestSQLiteClientRejectsMissingFile(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	for _, path := range []string{
+		filepath.Join(dir, "missing.db"),
+		"file:" + filepath.Join(dir, "missing.db"),
+		"file:" + filepath.Join(dir, "missing.db") + "?cache=shared",
+	} {
+		client, err := NewSQLiteClient(ctx, path)
+		if err == nil {
+			_ = client.Close()
+			t.Errorf("NewSQLiteClient(%q) succeeded for a missing file", path)
+		}
+	}
+	if entries, _ := os.ReadDir(dir); len(entries) != 0 {
+		t.Fatalf("NewSQLiteClient() created files: %v", entries)
+	}
+
+	existing := emptySQLiteFile(t, "existing.db")
+	for _, path := range []string{existing, "file:" + existing, ":memory:"} {
+		client, err := NewSQLiteClient(ctx, path)
+		if err != nil {
+			t.Errorf("NewSQLiteClient(%q) failed: %v", path, err)
+			continue
+		}
+		_ = client.Close()
+	}
+}
+
+func TestSQLiteExtractorMatchesRequestedTablesCaseInsensitively(t *testing.T) {
+	ctx := context.Background()
+	client, err := NewSQLiteClient(ctx, ":memory:")
+	if err != nil {
+		t.Fatalf("NewSQLiteClient() failed: %v", err)
+	}
+	defer func() { _ = client.Close() }()
+
+	if _, err := client.GetDB().ExecContext(ctx, `CREATE TABLE Users (id INTEGER PRIMARY KEY)`); err != nil {
+		t.Fatalf("creating schema failed: %v", err)
+	}
+
+	s, err := NewSQLiteExtractor(client).ExtractSchema(ctx, []string{"users"})
+	if err != nil {
+		t.Fatalf("ExtractSchema(users) failed: %v", err)
+	}
+	if len(s.Tables) != 1 || s.Tables[0].Name != "Users" || len(s.Tables[0].Columns) != 1 {
+		t.Fatalf("ExtractSchema(users) tables = %+v, want Users with its column", s.Tables)
 	}
 }

@@ -5,6 +5,7 @@
 -- Then test with: ./llmschema --db-url "postgres://localhost/testdb"
 
 -- Drop tables if they exist
+DROP VIEW IF EXISTS active_users;
 DROP TABLE IF EXISTS external_profiles;
 DROP TABLE IF EXISTS partitioned_profiles;
 DROP TABLE IF EXISTS expression_children;
@@ -34,6 +35,9 @@ CREATE TABLE users (
     status user_status DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Views are omitted by default but can be requested by name
+CREATE VIEW active_users AS SELECT id, username FROM users WHERE status = 'active';
 
 CREATE TABLE products (
     id SERIAL PRIMARY KEY,

@@ -3,6 +3,7 @@ CREATE DATABASE IF NOT EXISTS testdb;
 USE testdb;
 
 -- Drop tables if they exist
+DROP VIEW IF EXISTS active_users;
 DROP TABLE IF EXISTS external_profiles;
 DROP TABLE IF EXISTS expression_children;
 DROP TABLE IF EXISTS order_items;
@@ -22,6 +23,9 @@ CREATE TABLE users (
     status ENUM('active', 'inactive', 'banned') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Views are omitted by default but can be requested by name
+CREATE VIEW active_users AS SELECT id, username FROM users WHERE status = 'active';
 
 CREATE TABLE products (
     id INT AUTO_INCREMENT PRIMARY KEY,

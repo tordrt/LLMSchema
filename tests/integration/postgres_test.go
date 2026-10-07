@@ -46,6 +46,9 @@ func TestPostgresExtraction(t *testing.T) {
 	// Verify tables exist
 	expectedTables := []string{"users", "products", "orders", "order_items", "profiles", "partitioned_profiles", "composite_parents", "composite_children", "expression_children", "external_profiles"}
 	verifyTablesExist(t, s, expectedTables)
+	if findTable(s, "active_users") != nil {
+		t.Error("Views should not be extracted unless requested")
+	}
 
 	// Verify users table structure
 	table := findTable(s, "users")
@@ -112,6 +115,12 @@ func TestPostgresSpecificTables(t *testing.T) {
 
 	_, err = extractor.ExtractSchema(ctx, []string{"users", "no_such_table"})
 	verifyUnknownTableRejected(t, err)
+
+	views, err := extractor.ExtractSchema(ctx, []string{"active_users"})
+	if err != nil {
+		t.Fatalf("Failed to extract requested view: %v", err)
+	}
+	verifyColumns(t, findTable(views, "active_users"), []string{"id", "username"})
 }
 
 func TestPostgresNonPublicSchema(t *testing.T) {

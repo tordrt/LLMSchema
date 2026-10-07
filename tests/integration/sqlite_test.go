@@ -111,6 +111,9 @@ func sqliteTestPath(t *testing.T) string {
 		t.Fatalf("Failed to read SQLite test schema: %v", err)
 	}
 	dbPath := filepath.Join(t.TempDir(), "test.db")
+	if err := os.WriteFile(dbPath, nil, 0o600); err != nil {
+		t.Fatalf("Failed to create SQLite file: %v", err)
+	}
 	client, err := db.NewSQLiteClient(context.Background(), dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create SQLite test database: %v", err)
@@ -133,6 +136,9 @@ func TestSQLiteQuotedIdentifiersThroughPublicAPI(t *testing.T) {
 
 	ctx := context.Background()
 	dbPath := filepath.Join(t.TempDir(), "quoted-identifiers.db")
+	if err := os.WriteFile(dbPath, nil, 0o600); err != nil {
+		t.Fatalf("Failed to create SQLite file: %v", err)
+	}
 	client, err := db.NewSQLiteClient(ctx, dbPath)
 	if err != nil {
 		t.Fatalf("Failed to create SQLite database: %v", err)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -16,13 +17,25 @@ type SQLiteClient struct {
 	databaseName string
 }
 
-// NewSQLiteClient creates a new SQLite client
+// NewSQLiteClient opens an existing SQLite database. Missing database files
+// are reported as errors rather than created.
 func NewSQLiteClient(ctx context.Context, path string) (*SQLiteClient, error) {
+	filePath, query, hasQuery := strings.Cut(path, "?")
+	if !strings.HasPrefix(filePath, "file:") && filePath != ":memory:" {
+		if _, err := os.Stat(filePath); err != nil {
+			return nil, fmt.Errorf("failed to open database: %w", err)
+		}
+	}
+
 	querySeparator := "?"
-	if strings.Contains(path, "?") {
+	if hasQuery {
 		querySeparator = "&"
 	}
 	dsn := path + querySeparator + "_pragma=busy_timeout%285000%29"
+	// URI filenames honor mode=rw, which stops the driver creating the file.
+	if strings.HasPrefix(filePath, "file:") && !strings.Contains(query, "mode=") {
+		dsn += "&mode=rw"
+	}
 
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {

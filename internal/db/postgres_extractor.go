@@ -61,11 +61,13 @@ func (e *Extractor) getTableNames(ctx context.Context, requestedTables []string)
 	query := `
 		SELECT table_name
 		FROM information_schema.tables
-		WHERE table_schema = $1 AND table_type = 'BASE TABLE'
+		WHERE table_schema = $1
+			AND (table_type = 'BASE TABLE' OR ($2 AND table_type = 'VIEW'))
 		ORDER BY table_name
 	`
 
-	rows, err := e.client.GetConnection().Query(ctx, query, e.schema)
+	// Views can be requested by name but are not included by default.
+	rows, err := e.client.GetConnection().Query(ctx, query, e.schema, len(requestedTables) > 0)
 	if err != nil {
 		return nil, err
 	}
