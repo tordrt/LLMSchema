@@ -11,10 +11,10 @@ services:
     volumes:
       - ./test_postgres_schema.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U testuser -d testdb"]
       interval: 5s
       timeout: 3s
-      retries: 5
+      retries: 30
 
   mysql:
     image: mysql:8.0
@@ -27,7 +27,7 @@ services:
     volumes:
       - ./test_mysql_schema.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-ptestpassword"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-ptestpassword"]
       interval: 5s
       timeout: 3s
-      retries: 5
+      retries: 30

@@ -21,30 +21,23 @@ test-unit:
 
 # Start all test databases
 docker-up:
-	docker-compose up -d
-	@echo "Waiting for databases to be ready..."
-	@sleep 5
-	@docker-compose ps
+	docker compose up -d --wait
 
 # Start only PostgreSQL
 docker-up-postgres:
-	docker-compose up -d postgres
-	@echo "Waiting for PostgreSQL to be ready..."
-	@sleep 3
+	docker compose up -d --wait postgres
 
 # Start only MySQL
 docker-up-mysql:
-	docker-compose up -d mysql
-	@echo "Waiting for MySQL to be ready..."
-	@sleep 3
+	docker compose up -d --wait mysql
 
 # Stop all test databases
 docker-down:
-	docker-compose down
+	docker compose down
 
 # Stop and remove volumes
 docker-clean:
-	docker-compose down -v
+	docker compose down -v
 
 # Setup SQLite test database
 setup-sqlite:
@@ -112,7 +105,7 @@ test-sqlite-dir: build setup-sqlite
 # Run integration tests against all databases
 test-integration: build docker-up setup-sqlite
 	@echo "\n=== Running integration tests ==="
-	POSTGRES_TEST_URL="$(POSTGRES_TEST_URL)" MYSQL_TEST_URL="$(MYSQL_TEST_URL)" go test -v -tags=integration ./tests/integration/...
+	POSTGRES_TEST_URL="$(POSTGRES_TEST_URL)" MYSQL_TEST_URL="$(MYSQL_TEST_URL)" go test -v -tags=integration . ./tests/integration/...
 
 # Quick test - build and test all databases
 test-all: build docker-up setup-sqlite
@@ -125,15 +118,15 @@ test-all: build docker-up setup-sqlite
 
 # Show database logs
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 # Show PostgreSQL logs
 logs-postgres:
-	docker-compose logs -f postgres
+	docker compose logs -f postgres
 
 # Show MySQL logs
 logs-mysql:
-	docker-compose logs -f mysql
+	docker compose logs -f mysql
 
 # Clean generated files
 clean:
