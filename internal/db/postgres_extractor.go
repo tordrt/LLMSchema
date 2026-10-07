@@ -58,10 +58,6 @@ func (e *Extractor) ExtractSchema(ctx context.Context, tables []string) (*schema
 
 // getTableNames returns the list of tables to extract
 func (e *Extractor) getTableNames(ctx context.Context, requestedTables []string) ([]string, error) {
-	if len(requestedTables) > 0 {
-		return requestedTables, nil
-	}
-
 	query := `
 		SELECT table_name
 		FROM information_schema.tables
@@ -84,7 +80,11 @@ func (e *Extractor) getTableNames(ctx context.Context, requestedTables []string)
 		tables = append(tables, tableName)
 	}
 
-	return tables, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return selectRequestedTables(tables, requestedTables)
 }
 
 // extractTable extracts all information for a single table
@@ -124,8 +124,13 @@ func (e *Extractor) extractTable(ctx context.Context, tableName string) (*schema
 }
 
 // normalizePostgresType maps verbose SQL type names to commonly-used PostgreSQL equivalents
-func normalizePostgresType(dataType, udtName string, charMaxLength *int) string {
+func normalizePostgresType(dataType, udtName string, charMaxLength, numericPrecision, numericScale *int) string {
 	switch dataType {
+	case "numeric":
+		if numericPrecision != nil && numericScale != nil {
+			return fmt.Sprintf("numeric(%d,%d)", *numericPrecision, *numericScale)
+		}
+		return dataType
 	case "timestamp with time zone":
 		return "timestamptz"
 	case "timestamp without time zone":
@@ -189,7 +194,9 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 			c.is_nullable,
 			c.column_default,
 			c.udt_name,
-			c.character_maximum_length
+			c.character_maximum_length,
+			c.numeric_precision,
+			c.numeric_scale
 		FROM information_schema.columns c
 		WHERE table_schema = $1 AND table_name = $2
 		ORDER BY ordinal_position
@@ -212,8 +219,10 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 		var dataType string
 		var udtName string
 		var charMaxLength *int
+		var numericPrecision *int
+		var numericScale *int
 
-		if err := rows.Scan(&col.Name, &dataType, &nullable, &defaultVal, &udtName, &charMaxLength); err != nil {
+		if err := rows.Scan(&col.Name, &dataType, &nullable, &defaultVal, &udtName, &charMaxLength, &numericPrecision, &numericScale); err != nil {
 			return nil, err
 		}
 
@@ -221,7 +230,7 @@ func (e *Extractor) extractColumns(ctx context.Context, tableName string) ([]sch
 		col.DefaultValue = defaultVal
 
 		// Use SQL standard type names, but apply PostgreSQL-specific shortcuts for verbose types
-		col.Type = normalizePostgresType(dataType, udtName, charMaxLength)
+		col.Type = normalizePostgresType(dataType, udtName, charMaxLength, numericPrecision, numericScale)
 
 		// If it's a USER-DEFINED type, remember it for later lookup of enum values
 		if dataType == "USER-DEFINED" {

@@ -297,6 +297,34 @@ func verifyEnumValues(t *testing.T, s *schema.Schema, tableName, columnName stri
 	t.Errorf("Column %s not found in table %s", columnName, tableName)
 }
 
+// verifyColumnType checks the extracted type of a column
+func verifyColumnType(t *testing.T, s *schema.Schema, tableName, columnName, expectedType string) {
+	t.Helper()
+
+	table := findTable(s, tableName)
+	if table == nil {
+		t.Fatalf("Table %s not found", tableName)
+	}
+	for _, col := range table.Columns {
+		if col.Name == columnName {
+			if col.Type != expectedType {
+				t.Errorf("Expected %s.%s type %q, got %q", tableName, columnName, expectedType, col.Type)
+			}
+			return
+		}
+	}
+	t.Errorf("Column %s not found in table %s", columnName, tableName)
+}
+
+// verifyUnknownTableRejected checks the error from requesting users and no_such_table
+func verifyUnknownTableRejected(t *testing.T, err error) {
+	t.Helper()
+
+	if err == nil || !strings.Contains(err.Error(), "no_such_table") {
+		t.Errorf("Expected error naming no_such_table, got %v", err)
+	}
+}
+
 // findTable is a helper function to find a table by name in the schema
 func findTable(s *schema.Schema, tableName string) *schema.Table {
 	for i := range s.Tables {

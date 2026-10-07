@@ -95,6 +95,9 @@ func TestSQLiteSpecificTables(t *testing.T) {
 	if tableMap["orders"] || tableMap["order_items"] {
 		t.Error("Should not include orders or order_items tables")
 	}
+
+	_, err = extractor.ExtractSchema(ctx, []string{"users", "no_such_table"})
+	verifyUnknownTableRejected(t, err)
 }
 
 func sqliteTestPath(t *testing.T) string {

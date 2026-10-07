@@ -68,6 +68,7 @@ func TestPostgresExtraction(t *testing.T) {
 	verifyExternalSchemaRelation(t, s, "external_profiles", "identity", "users")
 	verifyExpressionIndexMarked(t, s, "expression_children_user_label")
 	verifyKeyAndIndexMarkdown(t, s)
+	verifyColumnType(t, s, "products", "price", "numeric(10,2)")
 }
 
 func TestPostgresSpecificTables(t *testing.T) {
@@ -108,6 +109,9 @@ func TestPostgresSpecificTables(t *testing.T) {
 	if tableMap["products"] || tableMap["order_items"] {
 		t.Error("Should not include products or order_items tables")
 	}
+
+	_, err = extractor.ExtractSchema(ctx, []string{"users", "no_such_table"})
+	verifyUnknownTableRejected(t, err)
 }
 
 func TestPostgresNonPublicSchema(t *testing.T) {

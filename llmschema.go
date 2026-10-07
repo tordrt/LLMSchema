@@ -356,6 +356,13 @@ func mySQLSchemaNameError(err error) error {
 }
 
 func extractSQLiteSchema(ctx context.Context, filePath string, opts *Options) (*schema.Schema, error) {
+	// The SQLite driver creates missing files; a mistyped path should fail instead.
+	if path, _, _ := strings.Cut(filePath, "?"); !strings.HasPrefix(path, "file:") && path != ":memory:" {
+		if _, err := os.Stat(path); err != nil {
+			return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
+		}
+	}
+
 	client, err := db.NewSQLiteClient(ctx, filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SQLite: %w", err)

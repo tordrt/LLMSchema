@@ -364,3 +364,22 @@ func assertRelation(t *testing.T, relations []schema.Relation, source, target []
 	}
 	t.Errorf("relationship %v -> %v not found in %#v", source, target, relations)
 }
+
+func TestSelectRequestedTables(t *testing.T) {
+	allTables := []string{"orders", "products", "users"}
+
+	got, err := selectRequestedTables(allTables, nil)
+	if err != nil || !slices.Equal(got, allTables) {
+		t.Fatalf("selectRequestedTables(all, nil) = %v, %v; want all tables", got, err)
+	}
+
+	got, err = selectRequestedTables(allTables, []string{"users", "orders"})
+	if err != nil || !slices.Equal(got, []string{"users", "orders"}) {
+		t.Fatalf("selectRequestedTables(all, users,orders) = %v, %v; want requested order", got, err)
+	}
+
+	_, err = selectRequestedTables(allTables, []string{"users", "nope", "missing"})
+	if err == nil || err.Error() != "table(s) not found: nope, missing" {
+		t.Fatalf("selectRequestedTables() error = %v, want unknown tables listed", err)
+	}
+}

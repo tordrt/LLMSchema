@@ -58,6 +58,8 @@ func TestMySQLExtraction(t *testing.T) {
 	// Verify ENUM type extraction for status column
 	expectedEnumValues := []string{"active", "inactive", "banned"}
 	verifyEnumValues(t, s, "users", "status", expectedEnumValues)
+	verifyColumnType(t, s, "users", "status", "enum")
+	verifyColumnType(t, s, "products", "price", "decimal(10,2)")
 
 	// Verify foreign key relationships
 	verifyForeignKey(t, s, "orders", "user_id", "users")
@@ -105,4 +107,7 @@ func TestMySQLSpecificTables(t *testing.T) {
 	if tableMap["orders"] || tableMap["order_items"] {
 		t.Error("Should not include orders or order_items tables")
 	}
+
+	_, err = extractor.ExtractSchema(ctx, []string{"users", "no_such_table"})
+	verifyUnknownTableRejected(t, err)
 }

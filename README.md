@@ -243,7 +243,7 @@ fixture:
 |--------|------|
 | id | PK integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass) |
 | user_id | integer NOT NULL |
-| total_amount | numeric NOT NULL |
+| total_amount | numeric(10,2) NOT NULL |
 | order_date | timestamp DEFAULT CURRENT_TIMESTAMP |
 | status | order_status (pending, processing, shipped, delivered, cancelled) DEFAULT 'pending'::order_status |
 
@@ -314,7 +314,7 @@ outgoing and incoming relationships.
 |--------|------|
 | id | PK integer NOT NULL DEFAULT nextval('orders_id_seq'::regclass) |
 | user_id | integer NOT NULL |
-| total_amount | numeric NOT NULL |
+| total_amount | numeric(10,2) NOT NULL |
 | order_date | timestamp DEFAULT CURRENT_TIMESTAMP |
 | status | order_status (pending, processing, shipped, delivered, cancelled) DEFAULT 'pending'::order_status |
 

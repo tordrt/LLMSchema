@@ -92,6 +92,8 @@ func (opts *cliOptions) run(cmd *cobra.Command, extractAndFormat extractAndForma
 	if databaseURL == "" {
 		return fmt.Errorf("--db-url is required or %s must be set", databaseURLEnv)
 	}
+	// Flags are valid from here on, so runtime errors should not print usage.
+	cmd.SilenceUsage = true
 
 	outOpts := &llmschema.OutputOptions{
 		OutputDir:          opts.outputDir,

@@ -56,10 +56,6 @@ func (e *MySQLExtractor) ExtractSchema(ctx context.Context, tables []string) (*s
 
 // getTableNames returns the list of tables to extract
 func (e *MySQLExtractor) getTableNames(ctx context.Context, requestedTables []string) ([]string, error) {
-	if len(requestedTables) > 0 {
-		return requestedTables, nil
-	}
-
 	query := `
 		SELECT table_name
 		FROM information_schema.tables
@@ -82,7 +78,11 @@ func (e *MySQLExtractor) getTableNames(ctx context.Context, requestedTables []st
 		tables = append(tables, tableName)
 	}
 
-	return tables, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return selectRequestedTables(tables, requestedTables)
 }
 
 // extractTable extracts all information for a single table
@@ -180,6 +180,8 @@ func (e *MySQLExtractor) extractColumns(ctx context.Context, tableName string) (
 			return nil, err
 		}
 		columns[idx].EnumValues = enumValues
+		// The values are listed separately, so avoid repeating them in the type.
+		columns[idx].Type = "enum"
 	}
 
 	return columns, nil

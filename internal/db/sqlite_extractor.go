@@ -54,10 +54,6 @@ func (e *SQLiteExtractor) ExtractSchema(ctx context.Context, tables []string) (*
 
 // getTableNames returns the list of tables to extract
 func (e *SQLiteExtractor) getTableNames(ctx context.Context, requestedTables []string) ([]string, error) {
-	if len(requestedTables) > 0 {
-		return requestedTables, nil
-	}
-
 	query := `
 		SELECT name
 		FROM sqlite_master
@@ -80,7 +76,11 @@ func (e *SQLiteExtractor) getTableNames(ctx context.Context, requestedTables []s
 		tableList = append(tableList, tableName)
 	}
 
-	return tableList, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return selectRequestedTables(tableList, requestedTables)
 }
 
 // extractTable extracts all information for a single table

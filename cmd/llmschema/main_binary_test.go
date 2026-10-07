@@ -86,6 +86,35 @@ func TestBuiltCLI(t *testing.T) {
 		}
 	})
 
+	t.Run("rejects missing SQLite file without creating it", func(t *testing.T) {
+		missingPath := filepath.Join(tempDir, "missing.db")
+		cmd := exec.Command(binaryPath, "--db-url", "sqlite://"+missingPath)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("CLI succeeded unexpectedly:\n%s", output)
+		}
+		if !strings.Contains(string(output), "no such file") {
+			t.Errorf("CLI error missing file guidance:\n%s", output)
+		}
+		if strings.Contains(string(output), "Usage:") {
+			t.Errorf("CLI printed usage for a runtime error:\n%s", output)
+		}
+		if _, err := os.Stat(missingPath); !os.IsNotExist(err) {
+			t.Errorf("CLI created missing database file: %v", err)
+		}
+	})
+
+	t.Run("rejects unknown tables", func(t *testing.T) {
+		cmd := exec.Command(binaryPath, "--db-url", "sqlite://"+dbPath, "--tables", "users,nope")
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("CLI succeeded unexpectedly:\n%s", output)
+		}
+		if !strings.Contains(string(output), "table(s) not found: nope") {
+			t.Errorf("CLI error missing unknown table:\n%s", output)
+		}
+	})
+
 	t.Run("returns nonzero for invalid invocation", func(t *testing.T) {
 		cmd := exec.Command(binaryPath)
 		output, err := cmd.CombinedOutput()
