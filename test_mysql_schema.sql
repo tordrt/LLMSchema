@@ -124,5 +124,6 @@ CREATE TABLE generated_values (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     quantity INT NOT NULL,
     doubled INT GENERATED ALWAYS AS (quantity * 2) STORED,
-    tripled INT AS (quantity * 3) VIRTUAL
+    tripled INT AS (quantity * 3) VIRTUAL,
+    label VARCHAR(20) AS (concat('#', quantity)) VIRTUAL
 );

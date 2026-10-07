@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/tordrt/llmschema/internal/schema"
@@ -178,7 +179,7 @@ func (e *MySQLExtractor) extractColumns(ctx context.Context, tableName string) (
 		if strings.Contains(extra, "AUTO_INCREMENT") {
 			col.Generated = "AUTO_INCREMENT"
 		} else if (strings.Contains(extra, "STORED GENERATED") || strings.Contains(extra, "VIRTUAL GENERATED")) && generationExpression.Valid {
-			col.Generated = generatedAs(generationExpression.String)
+			col.Generated = generatedAs(cleanMySQLExpression(generationExpression.String))
 		}
 
 		// Check if this is an ENUM column
@@ -373,4 +374,22 @@ func (e *MySQLExtractor) extractIndexes(ctx context.Context, tableName string) (
 	}
 
 	return indexes, rows.Err()
+}
+
+// mysqlCharsetIntroducer matches a character set introducer such as _utf8mb4
+// before a string literal.
+var mysqlCharsetIntroducer = regexp.MustCompile("(^|[^A-Za-z0-9_$`])_[A-Za-z0-9]+'")
+
+// cleanMySQLExpression makes a generation_expression readable. MySQL reports
+// it with quotes and backslashes escaped again and charset introducers added,
+// e.g. concat(`a`,_utf8mb4\'!\') for concat(a, '!').
+func cleanMySQLExpression(expression string) string {
+	var unescaped strings.Builder
+	for i := 0; i < len(expression); i++ {
+		if expression[i] == '\\' && i+1 < len(expression) && (expression[i+1] == '\\' || expression[i+1] == '\'') {
+			i++
+		}
+		unescaped.WriteByte(expression[i])
+	}
+	return mysqlCharsetIntroducer.ReplaceAllString(unescaped.String(), "$1'")
 }

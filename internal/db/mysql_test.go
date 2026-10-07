@@ -38,3 +38,21 @@ func TestMySQLDSNPreservesSpecialCharactersInPassword(t *testing.T) {
 		t.Fatalf("ParseDSN() = user %q, password %q, addr %q, db %q", cfg.User, cfg.Passwd, cfg.Addr, cfg.DBName)
 	}
 }
+
+func TestCleanMySQLExpression(t *testing.T) {
+	tests := []struct {
+		expression string
+		want       string
+	}{
+		{"(`quantity` * 2)", "(`quantity` * 2)"},
+		{`concat(` + "`email`" + `,_latin1\'!\')`, "concat(`email`,'!')"},
+		{`substring_index(` + "`email`" + `,_utf8mb4\'@\',-(1))`, "substring_index(`email`,'@',-(1))"},
+		{`concat(` + "`a`" + `,_latin1\'it\\\'s\',_latin1\'back\\\\slash\')`, "concat(`a`,'it\\'s','back\\\\slash')"},
+		{"convert(`a` using utf8mb4)", "convert(`a` using utf8mb4)"},
+	}
+	for _, tt := range tests {
+		if got := cleanMySQLExpression(tt.expression); got != tt.want {
+			t.Errorf("cleanMySQLExpression(%q) = %q, want %q", tt.expression, got, tt.want)
+		}
+	}
+}

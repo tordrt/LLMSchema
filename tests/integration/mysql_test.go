@@ -71,6 +71,7 @@ func TestMySQLExtraction(t *testing.T) {
 		"quantity": "",
 		"doubled":  "GENERATED ALWAYS AS (`quantity` * 2)",
 		"tripled":  "GENERATED ALWAYS AS (`quantity` * 3)",
+		"label":    "GENERATED ALWAYS AS (concat('#',`quantity`))",
 	})
 
 	// Verify foreign key relationships
