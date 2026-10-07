@@ -86,6 +86,14 @@ if [[ "$actual_version" != "$expected_version" ]]; then
 fi
 
 "$binary" --help >/dev/null
+
+if "$binary" --db-url "sqlite://$temp_dir/missing.db" >/dev/null 2>&1 || [[ -e "$temp_dir/missing.db" ]]; then
+	echo "SQLite smoke test accepted or created a missing database file" >&2
+	exit 1
+fi
+
+# An empty file is a valid, empty SQLite database.
+: >"$temp_dir/smoke.db"
 "$binary" --db-url "sqlite://$temp_dir/smoke.db" >"$temp_dir/schema.md"
 
 if ! grep -Fq "# Database Schema" "$temp_dir/schema.md"; then
